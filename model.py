@@ -6,22 +6,30 @@ from peewee import (
     CharField, DateTimeField, ForeignKeyField
 )
 from bs4 import BeautifulSoup
+import time
+import cv2
+
+from async3rd import PPTX
 
 
 class NoPidColumn(Exception):
     pass
 
+
 class NoPurityColumn(Exception):
     pass
 
+
 class NoLALColumn(Exception):
     pass
+
 
 db = SqliteDatabase("sqlite.db", pragmas={
     'foreign_keys': 1,
     'ignore_check_constraints': 0,
     'synchronous': 0
-    })
+})
+
 
 class BaseModel(Model):
     class Meta:
@@ -44,49 +52,73 @@ class SDS(BaseModel):
     source = ForeignKeyField(QCFile, backref="sds_set", on_delete="CASCADE")
 
     @classmethod
-    def from_ppt(cls, src:QCFile):
-        print(src.name)
+    async def from_ppt(cls, src: QCFile):
         '''从PPT中提取SDS数据'''
         try:
             # 转换长文件路径
-            pathname = src.pathname
-            pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
-            ppt = ZipFile(pathname)
-            slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
-            # 解析PPT XML数据
             res = []
-            for s in slides:
-                with ppt.open(s) as slide:
-                    bs = BeautifulSoup(slide, features="xml")
-                    table_frames = bs.find_all("p:graphicFrame")
-                    x = [int(frame.find("p:xfrm").find("a:off")["x"]) for frame in table_frames]
-                    if x:
-                        table = table_frames[x.index(max(x))].find("a:graphicData")
-                        rows = table.find_all("a:tr")
-                        heads = [item.text for item in rows[0].find_all("a:tc")]
-                        # 查找 pid, purity字段
-                        pid_i, purity_i = None, None
-                        for i, value in enumerate(heads):
-                            if value in ["蛋白编号","CoA#"]:
-                                pid_i = i
-                            elif "纯度" in value:
-                                purity_i = i
-                        if pid_i is None:
-                            # continue
-                            return [], src, "NoPidColumn"
-                        if purity_i is None:
-                            return [], src, "NoPurityColumn"
-                        # 保存行数据
-                        for r in rows[1:]:
-                            cols = r.find_all("a:tc")
-                            pid = cols[pid_i].text
-                            purity = cols[purity_i].text
-                            exist = cls.get_or_none(pid=pid, purity=purity, source=src)
-                            if not exist:
-                                res.append(cls(pid=pid, purity=purity, source=src))
-            return res, None, None
+            pathname = src.pathname
+            pathname = GetShortPathName(pathname) if len(
+                pathname) > 255 else pathname
+            async with PPTX(pathname) as ppt:
+                tables = await ppt.get_tables()
+            for df in tables:
+                if len(df.columns) > 10:
+                    continue
+                pid_i, purity_i, lane_i = None, None, None
+                for index in df.columns:
+                    if index in ["蛋白编号", "CoA#"]:
+                        pid_i = index
+                    elif "纯度" in index:
+                        purity_i = index
+                    elif index in ["样品编号"]:
+                        lane_i = index
+                if pid_i is None:
+                    # continue
+                    return [], src, "NoPidColumn"
+                if purity_i is None:
+                    return [], src, "NoPurityColumn"
+                for i in df.index:
+                    exist = cls.get_or_none(
+                        pid=df[pid_i][i],
+                        purity=df[purity_i][i],
+                        source=src
+                    )
+                    if not exist:
+                        res.append(cls(
+                            pid=df[pid_i][i],
+                            purity=df[purity_i][i],
+                            source=src
+                        ))
+            return res
         except Exception as e:
-            return [], src, str(e)
+            print(e)
+        # table_frames = bs.find_all("p:graphicFrame")
+        # x = [int(frame.find("p:xfrm").find("a:off")["x"]) for frame in table_frames]
+        # if x:
+        #     table = table_frames[x.index(max(x))].find("a:graphicData")
+        #     rows = table.find_all("a:tr")
+        #     heads = [item.text for item in rows[0].find_all("a:tc")]
+        #     # 查找 pid, purity字段
+        #     pid_i, purity_i = None, None
+        #     for i, value in enumerate(heads):
+        #         if value in ["蛋白编号","CoA#"]:
+        #             pid_i = i
+        #         elif "纯度" in value:
+        #             purity_i = i
+        #     if pid_i is None:
+        #         # continue
+        #         return [], src, "NoPidColumn"
+        #     if purity_i is None:
+        #         return [], src, "NoPurityColumn"
+        #     # 保存行数据
+        #     for r in rows[1:]:
+        #         cols = r.find_all("a:tc")
+        #         pid = cols[pid_i].text
+        #         purity = cols[purity_i].text
+        #         exist = cls.get_or_none(pid=pid, purity=purity, source=src)
+        #         if not exist:
+        #             res.append(cls(pid=pid, purity=purity, source=src))
 
 
 class SEC(BaseModel):
@@ -99,15 +131,16 @@ class SEC(BaseModel):
     attach = ForeignKeyField(QCFile, backref="sec_attach_set", null=True)
 
     @classmethod
-    def from_ppt(cls, src:QCFile):
-        print(src.name)
+    async def from_ppt(cls, src: QCFile):
         '''从PPT中提取SEC数据'''
         try:
             # 转换长文件路径
             pathname = src.pathname
-            pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
+            pathname = GetShortPathName(pathname) if len(
+                pathname) > 255 else pathname
             ppt = ZipFile(pathname)
-            slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
+            slides = (i for i in ppt.namelist()
+                      if i.startswith("ppt/slides/slide"))
             # 解析PPT XML数据
             res = []
             for s in slides:
@@ -116,11 +149,12 @@ class SEC(BaseModel):
                     table = bs.find("a:graphicData")
                     if table:
                         rows = table.find_all("a:tr")
-                        heads = [item.text for item in rows[0].find_all("a:tc")]
+                        heads = [
+                            item.text for item in rows[0].find_all("a:tc")]
                         # 查找 pid...字段
                         pid_i, rt_i, hmw_i, monomer_i, lmw_i = None, None, None, None, None
                         for i, value in enumerate(heads):
-                            if value in ["蛋白编号","CoA编号","P编号"]:
+                            if value in ["蛋白编号", "CoA编号", "P编号"]:
                                 pid_i = i
                             elif value in ["单体保留时间（min）"]:
                                 rt_i = i
@@ -149,22 +183,22 @@ class SEC(BaseModel):
                             monomer = cols[monomer_i].text
                             lmw = cols[lmw_i].text
                             exist = cls.get_or_none(
-                                pid=pid, retention_time=rt, hmw=hmw, 
+                                pid=pid, retention_time=rt, hmw=hmw,
                                 monomer=monomer, lmw=lmw, source=src)
                             if not exist:
                                 res.append(cls(
-                                    pid=pid, retention_time=rt, hmw=hmw, 
+                                    pid=pid, retention_time=rt, hmw=hmw,
                                     monomer=monomer, lmw=lmw, source=src))
             return res, None, None
         except Exception as e:
             return [], src, str(e)
 
     @classmethod
-    def add_attach(cls, src:QCFile):
-        print(src.name)
+    async def add_attach(cls, src: QCFile):
         try:
             pdf = src.name[:-4]
-            query = cls.select().join(QCFile, on=(cls.source==QCFile.id)).where(QCFile.name.contains(pdf))
+            query = cls.select().join(QCFile, on=(cls.source == QCFile.id)
+                                      ).where(QCFile.name.contains(pdf))
             updating = []
             for i in query:
                 i.attach = src
@@ -182,15 +216,16 @@ class LAL(BaseModel):
     source = ForeignKeyField(QCFile, backref="lal_set", on_delete="CASCADE")
 
     @classmethod
-    def from_ppt(cls, src:QCFile):
-        print(src.name)
+    async def from_ppt(cls, src: QCFile):
         '''从PPT中获取LAL信息'''
         try:
             # 转换长文件路径
             pathname = src.pathname
-            pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
+            pathname = GetShortPathName(pathname) if len(
+                pathname) > 255 else pathname
             ppt = ZipFile(pathname)
-            slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
+            slides = (i for i in ppt.namelist()
+                      if i.startswith("ppt/slides/slide"))
             # 解析PPT XML数据
             res = []
             for s in slides:
@@ -199,11 +234,12 @@ class LAL(BaseModel):
                     table = bs.find("a:graphicData")
                     if table:
                         rows = table.find_all("a:tr")
-                        heads = [item.text for item in rows[0].find_all("a:tc")]
+                        heads = [
+                            item.text for item in rows[0].find_all("a:tc")]
                         # 查找 pid, lal字段
                         pid_i, lal_i = None, None
                         for i, value in enumerate(heads):
-                            if value in ["蛋白编号","CoA#","P编号"]:
+                            if value in ["蛋白编号", "CoA#", "P编号"]:
                                 pid_i = i
                             elif value in ["结果(EU/mg)"]:
                                 lal_i = i
@@ -219,7 +255,8 @@ class LAL(BaseModel):
                             if (not pid) or (pid.isspace()):
                                 continue
                             lal = cols[lal_i].text
-                            exist = cls.get_or_none(pid=pid, value=lal, source=src)
+                            exist = cls.get_or_none(
+                                pid=pid, value=lal, source=src)
                             if not exist:
                                 res.append(cls(pid=pid, value=lal, source=src))
             return res, None, None

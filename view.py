@@ -4,6 +4,11 @@ from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
 from model import *
+import fitz
+from sds_reader import pre_cut, gel_crop
+import numpy as np
+import cv2
+import asyncio
 
 
 BASE_DIR = r"\\192.168.29.200\f\service\0.样品管理部\01 蛋白库相关\06 蛋白编号\00 理化质检-P90000之后在这里查理化质检结果"
@@ -49,10 +54,10 @@ def scan(dir):
                         errors.append({"path":i.path, "name":i.name, "error":str(e)})
     return res, errors
 
-def save_task(tasks, Model):
+async def save_task(tasks, Model):
+    task_results = await asyncio.gather(*tasks)
     unsaved, failed, res = [], [], []
-    for i in tasks:
-        temp, f, msg = i.result()
+    for temp, f, msg in task_results:
         unsaved += temp
         if f is not None:
             failed.append((f, msg))
@@ -63,10 +68,10 @@ def save_task(tasks, Model):
             res.append({"path":f.path, "name":f.name, "error":msg})
     return res
 
-def save_pdf_task(tasks, Model):
+async def save_pdf_task(tasks, Model):
+    task_results = await asyncio.gather(*tasks)
     unsaved, failed, res = [], [], []
-    for i in tasks:
-        temp, f, msg = i.result()
+    for temp, f, msg in task_results:
         unsaved += temp
         if f is not None:
             failed.append((f, msg))
@@ -77,28 +82,32 @@ def save_pdf_task(tasks, Model):
             res.append({"path":f.path, "name":f.name, "error":msg})
     return res
 
-def update_ssl():
+async def update_ssl():
+    print("备份")
     backup()
-    with ProcessPoolExecutor(10) as pool:
-        # SDS/SEC/LAL 更新
-        sds_files, error1 = scan(SDS_FOLDER)
-        sds_tasks = [pool.submit(SDS.from_ppt, i) for i in sds_files]
-        sec_files, error2 = scan(SEC_FOLDER)
-        sec_tasks = [pool.submit(SEC.from_ppt, i) for i in sec_files if i.name.lower().endswith("pptx")]
-        lal_files, error3 = scan(LAL_FOLDER)
-        lal_tasks = [pool.submit(LAL.from_ppt, i) for i in lal_files]
-        error1 += save_task(sds_tasks, SDS)
-        error2 += save_task(sec_tasks, SEC)
-        error3 += save_task(lal_tasks, LAL)
+    # Async
+    # SDS/SEC/LAL 更新
+    sds_files, error1 = scan(SDS_FOLDER)
+    sds_tasks = [asyncio.create_task(SDS.from_ppt(i)) for i in sds_files]
+    sec_files, error2 = scan(SEC_FOLDER)
+    sec_tasks = [asyncio.create_task(SEC.from_ppt(i)) for i in sec_files if i.name.lower().endswith("pptx")]
+    lal_files, error3 = scan(LAL_FOLDER)
+    lal_tasks = [asyncio.create_task(LAL.from_ppt(i)) for i in lal_files]
+    
+    error1 += await save_task(sds_tasks, SDS)
+    error2 += await save_task(sec_tasks, SEC)
+    error3 += await save_task(lal_tasks, LAL)
 
-        # SEC附件更新
-        sec_pdf_tasks = [pool.submit(SEC.add_attach, i) for i in sec_files if i.name.lower().endswith("pdf")]
-        error2 += save_pdf_task(sec_pdf_tasks, SEC)
+    # SEC附件更新
+    sec_pdf_tasks = [asyncio.create_task(SEC.add_attach(i)) for i in sec_files if i.name.lower().endswith("pdf")]
+    error2 += await save_pdf_task(sec_pdf_tasks, SEC)
 
-        # 输出错误文件
-        errors = error1 + error2 + error3
-        df = pd.DataFrame(errors, columns=["path", "name", "error"])
-        df.to_excel("errors.xlsx", index=False)
+    # 输出错误文件
+    print("输出")
+    errors = error1 + error2 + error3
+    df = pd.DataFrame(errors, columns=["path", "name", "error"])
+    df.to_excel("errors.xlsx", index=False)
+    print("完成")
 
 def clean(Model):
     '''清洗数据库，删除重复项'''
@@ -139,3 +148,106 @@ def clean(Model):
 def backup():
     '''备份数据库'''
     shutil.copy("sqlite.db", "sqlite_bak.db")
+
+def extract_sds(sds:SDS):
+    '''提取SDS图片'''
+    # 转换长文件路径
+    pathname = sds.source.pathname
+    pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
+    ppt = ZipFile(pathname)
+    slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
+    # 解析PPT XML数据
+    for s in slides:
+        with ppt.open(s) as slide:
+            bs = BeautifulSoup(slide, features="xml")
+            if sds.pid in bs.text:
+                # 获取泳道
+                trs = bs.find_all("a:tr")
+                for tr in trs:
+                    if sds.pid in tr.text:
+                        lane = int(tr.find("tc").text)
+                # 提取图片
+                rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
+                with ppt.open(rel) as slide_rel:
+                    rel_bs = BeautifulSoup(slide_rel, features="xml")
+                    relationships = rel_bs.find_all("Relationship")
+                    for re in relationships:
+                        if "media" in re["Target"]:
+                            img = re["Target"].replace("..", "ppt")
+                            ppt.extract(img, f"{sds.pid}/SDS")
+                            img = f"{sds.pid}/SDS/{img}"
+    return img, lane
+
+def extract_sds_lane(img, lane):
+    img, img_gray = pre_cut(img, cut_bg=True)
+    lines = gel_crop(img_gray)
+    non_reduced = img[:, lines[lane-1]:lines[lane]]
+    marker = img[:, lines[7]:lines[8]]
+    reduced = img[:, lines[7+lane]:lines[8+lane]]
+    sds_img = np.hstack([non_reduced, marker, reduced])
+    sds_img = cv2.resize(sds_img, (200, 720))
+    temp = cv2.imread("marker.png")
+    temp[40:, 60:] = sds_img
+    return temp
+
+def extract_sec(sec:SEC):
+    '''提取SEC图片'''
+    # 获取图号
+    pathname = sec.source.pathname
+    pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
+    ppt = ZipFile(pathname)
+    slides = [i for i in ppt.namelist() if i.startswith("ppt/slides/slide")]
+    for s in slides:
+        with ppt.open(s) as slide:
+            bs = BeautifulSoup(slide, features="xml")
+            # 获取图号
+            index = 0
+            for tr in bs.find_all("a:tr"):
+                if "PDF对应页码" in tr.text:
+                    index = 3
+                if sec.pid in tr.text:
+                    pic = tr.find_all("tc")[index].text
+    if sec.attach:
+        # 提取PDF
+        pdfpath = sec.attach.pathname
+        pdfpath = GetShortPathName(pdfpath) if len(pdfpath)>255 else pdfpath
+        try:
+            pdf = fitz.open(pdfpath)
+            page = pdf[int(pic)-1]
+            imgs = page.get_images()
+            pix = fitz.Pixmap(pdf, imgs[1][0])
+            if not os.path.exists(sec.pid):
+                os.mkdir(sec.pid)
+            img = f"{sec.pid}/sec.png"
+            pix.save(img)
+        except IndexError:
+            pix = page.get_pixmap(dpi=300)
+            if not os.path.exists(sec.pid):
+                os.mkdir(sec.pid)
+            img = f"{sec.pid}/sec.png"
+            pix.save(img)
+            cut_sec(img)
+        except Exception as e:
+            print(e)
+    else:
+        # 提取PPT
+        for s in slides:
+            with ppt.open(s) as slide:
+                bs = BeautifulSoup(slide, features="xml")
+                title = bs.find("p:ph", type="title")
+                if title and title.parent.parent.parent.text==pic:
+                    # 提取图片
+                    rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
+                    with ppt.open(rel) as slide_rel:
+                        rel_bs = BeautifulSoup(slide_rel, features="xml")
+                        relationships = rel_bs.find_all("Relationship")
+                        for re in relationships:
+                            if "media" in re["Target"]:
+                                img = re["Target"].replace("..", "ppt")
+                        ppt.extract(img, f"{sec.pid}/SEC")
+                        img = f"{sec.pid}/SEC/{img}"
+    return img
+
+def cut_sec(img):
+    sec_img = cv2.imread(img)
+    cv2.imwrite(img, sec_img[1000:1900,:])
