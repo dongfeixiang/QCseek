@@ -1,13 +1,12 @@
 import os
-import time
 import asyncio
 from pathlib import Path
-from datetime import datetime
 
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
-# from model import *
+from .model import *
+from .view import *
 
 
 BASE_DIRS = Path(r"Z:\service\0.样品管理部\01 蛋白库相关\06 蛋白编号")
@@ -23,8 +22,7 @@ SSL_DIRS = [
     BASE_DIRS / "P80000-P89999",
     BASE_DIRS / "P90000-100000",
 ]
-WHITE = [
-]
+WHITE = []
 
 # 异步方法
 # class DirScanner():
@@ -78,7 +76,8 @@ def scan(dir):
         for i in scanner:
             if i.is_dir():
                 res += scan(i)
-            elif i.path not in WHITE:
+            # 排除白名单文件和Windows临时文件
+            elif (i.path not in WHITE) and (not i.name.startswith("~$")):
                 name = i.name.lower()
                 if name.endswith("pptx") or name.endswith("pdf"):
                     folder = i.path.replace(i.name, "")[:-1]
@@ -104,58 +103,55 @@ def collect_files():
         ).to_excel(name, index=False)
 
 
-async def update_sds():
-    df = pd.read_excel("sds.xlsx")
+async def update_model(datafile: str, model: BaseModel):
+    df = pd.read_excel(datafile)
+    tasks = []
     for path, name in df.itertuples():
-        ...
+        qcfile = await create_qcfile(path, name)
+        if qcfile is None:
+            continue
+        task = asyncio.create_task(model.from_ppt(qcfile))
+        tasks.append(task)
+    res = await tqdm_asyncio.gather(*tasks)
+    updating, errors = [], []
+    for r, e in res:
+        updating += r
+        if e is not None:
+            errors.append(e)
+    # 更新数据库
+    # with db.atomic():
+    #     model.bulk_create(updating, batch_size=100)
+    # 输出错误文件
+    out = datafile.split(".")
+    out = "_error.".join(out)
+    pd.DataFrame(
+        errors,
+        columns=["path", "name", "error"]
+    ).to_excel(out, index=False)
 
 
-def save_qcfile(path, name):
-    try:
-        mtime = os.path.getmtime(Path(path) / name)
-        mtime = datetime.fromtimestamp(mtime)
-        qcfile, created = QCFile.get_or_create(
-            name=name,
-            defaults={"path": path, "modified": mtime}
-        )
-        if created:
-            return qcfile, None
-        elif qcfile.modified < mtime:
-            qcfile.path = path
-            qcfile.modified = mtime
-            qcfile.save()
-            return qcfile, None
-        else:
-            return None, None
-    except Exception as e:
-        return None, {"path": path, "name": name, "error": str(e)}
-
-
-def save_task(tasks, Model):
-    unsaved, failed, res = [], [], []
-    for i in tasks:
-        temp, f, msg = i.result()
-        unsaved += temp
-        if f is not None:
-            failed.append((f, msg))
-    with db.atomic():
-        Model.bulk_create(unsaved, batch_size=100)
-        for f, msg in failed:
-            f.delete_instance()
-            res.append({"path": f.path, "name": f.name, "error": msg})
-    return res
-
-
-def save_pdf_task(tasks, Model):
-    unsaved, failed, res = [], [], []
-    for i in tasks:
-        temp, f, msg = i.result()
-        unsaved += temp
-        if f is not None:
-            failed.append((f, msg))
-    with db.atomic():
-        Model.bulk_update(unsaved, fields=["attach"], batch_size=100)
-        for f, msg in failed:
-            f.delete_instance()
-            res.append({"path": f.path, "name": f.name, "error": msg})
-    return res
+async def attach_pdf(datafile: str):
+    df = pd.read_excel(datafile)
+    tasks = []
+    for path, name in df.itertuples():
+        qcfile = await create_qcfile(path, name)
+        if qcfile is None:
+            continue
+        task = asyncio.create_task(SEC.add_attach(qcfile))
+        tasks.append(task)
+    res = await tqdm_asyncio.gather(*tasks)
+    updating, errors = [], []
+    for r, e in res:
+        updating += r
+        if e is not None:
+            errors.append(e)
+    # 更新数据库
+    # with db.atomic():
+    #     SEC.bulk_update(updating, fields=["attach"], batch_size=100)
+    # 输出错误文件
+    out = datafile.split(".")
+    out = "_error.".join(out)
+    pd.DataFrame(
+        errors,
+        columns=["path", "name", "error"]
+    ).to_excel(out, index=False)

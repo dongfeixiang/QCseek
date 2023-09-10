@@ -1,143 +1,94 @@
 import os
 import shutil
 import asyncio
+from pathlib import Path
 from datetime import datetime
 
 import cv2
 import fitz
 import numpy as np
 import pandas as pd
-from sds_reader import pre_cut, gel_crop
+from .sds_reader import pre_cut, gel_crop
 
-from model import *
-
-
-BASE_DIR = r"\\192.168.29.200\f\service\0.样品管理部\01 蛋白库相关\06 蛋白编号\00 理化质检-P90000之后在这里查理化质检结果"
-SDS_FOLDER = f"{BASE_DIR}\SDS-PAGE"
-SEC_FOLDER = f"{BASE_DIR}\SEC"
-LAL_FOLDER = f"{BASE_DIR}\LAL"
-WHITE = [
-    fr"{SEC_FOLDER}\Thumbs.db",
-    fr"{LAL_FOLDER}\230624-1\【LAL定量】 做样表-ZY230624-1.xlsx",
-]
+from .model import *
 
 
-def create_qcfile(path, name):
-    try:
-        mtime = os.path.getmtime(Path(path) / name)
-        mtime = datetime.fromtimestamp(mtime)
-        qcfile, created = QCFile.get_or_create(
-            name=name,
-            defaults={"path": path, "modified": mtime}
-        )
-        if created:
-            return qcfile, None
-        elif qcfile.modified < mtime:
-            qcfile.path = path
-            qcfile.modified = mtime
-            qcfile.save()
-            return qcfile, None
-        else:
-            return None, None
-    except Exception as e:
-        return None, {"path": path, "name": name, "error": str(e)}
+# F盘文件夹路径
+BASE_DIR = Path(
+    r"\\192.168.29.200\f\service\0.样品管理部\01 蛋白库相关\06 蛋白编号\00 理化质检-P90000之后在这里查理化质检结果"
+)
+SDS_FOLDER = BASE_DIR / "SDS-PAGE"
+SEC_FOLDER = BASE_DIR / "SEC"
+LAL_FOLDER = BASE_DIR / "LAL"
+WHITE = []
+
+
+async def create_qcfile(path: str, name: str):
+    '''
+    Args:
+        - `path`: 文件路径
+        - `name`: 文件名
+
+    Returns:
+        - QCFile | None
+    '''
+    mtime = os.path.getmtime(Path(path) / name)
+    mtime = datetime.fromtimestamp(mtime)
+    qcfile, created = QCFile.get_or_create(
+        name=name,
+        defaults={"path": path, "modified": mtime}
+    )
+    if created:
+        return qcfile
+    elif qcfile.modified < mtime:
+        qcfile.path = path
+        qcfile.modified = mtime
+        qcfile.save()
+        return qcfile
+    else:
+        return None
 
 
 def scan(dir):
-    '''扫描文件夹, 返回待更新文件和错误文件'''
-    res, errors = [], []
-    with os.scandir(dir) as scaner:
-        for i in scaner:
+    '''扫描文件夹, 返回PPTX, PDF列表'''
+    res = []
+    with os.scandir(dir) as scanner:
+        for i in scanner:
             if i.is_dir():
-                r, e = scan(i)
-                res += r
-                errors += e
-            elif i.path not in WHITE:
-                if i.name.startswith("~$"):
-                    continue
-                if not (i.name.lower().endswith("pptx") or i.name.lower().endswith("pdf")):
-                    errors.append({"path": i.path, "name": i.name,
-                                  "error": "Is not PPT or PDF"})
-                else:
-                    try:
-                        mtime = os.path.getmtime(i)
-                        mtime = datetime.fromtimestamp(mtime)
-                        folder = i.path.replace(i.name, "")[:-1]
-                        qcfile, created = QCFile.get_or_create(
-                            name=i.name,
-                            defaults={"path": folder, "modified": mtime}
-                        )
-                        if created:
-                            res.append(qcfile)
-                        elif qcfile.modified < mtime:
-                            qcfile.modified = mtime
-                            qcfile.path = folder
-                            qcfile.save()
-                            res.append(qcfile)
-                    except Exception as e:
-                        errors.append(
-                            {"path": i.path, "name": i.name, "error": str(e)})
-    return res, errors
-
-
-async def save_task(tasks, Model):
-    task_results = await asyncio.gather(*tasks)
-    unsaved, failed, res = [], [], []
-    for temp, f, msg in task_results:
-        unsaved += temp
-        if f is not None:
-            failed.append((f, msg))
-    with db.atomic():
-        Model.bulk_create(unsaved, batch_size=100)
-        for f, msg in failed:
-            f.delete_instance()
-            res.append({"path": f.path, "name": f.name, "error": msg})
+                res += scan(i)
+            # 排除白名单文件和Windows临时文件
+            elif (i.path not in WHITE) and (not i.name.startswith("~$")):
+                name = i.name.lower()
+                if name.endswith("pptx") or name.endswith("pdf"):
+                    folder = i.path.replace(i.name, "")[:-1]
+                    res.append((folder, i.name))
     return res
 
 
-async def save_pdf_task(tasks, Model):
-    task_results = await asyncio.gather(*tasks)
-    unsaved, failed, res = [], [], []
-    for temp, f, msg in task_results:
-        unsaved += temp
-        if f is not None:
-            failed.append((f, msg))
-    with db.atomic():
-        Model.bulk_update(unsaved, fields=["attach"], batch_size=100)
-        for f, msg in failed:
-            f.delete_instance()
-            res.append({"path": f.path, "name": f.name, "error": msg})
-    return res
-
-
-async def update_ssl():
-    print("备份")
-    backup()
-    # Async
-    # SDS/SEC/LAL 更新
-    sds_files, error1 = scan(SDS_FOLDER)
-    sds_tasks = [asyncio.create_task(SDS.from_ppt(i)) for i in sds_files]
-    sec_files, error2 = scan(SEC_FOLDER)
-    sec_tasks = [asyncio.create_task(SEC.from_ppt(
-        i)) for i in sec_files if i.name.lower().endswith("pptx")]
-    lal_files, error3 = scan(LAL_FOLDER)
-    lal_tasks = [asyncio.create_task(LAL.from_ppt(i)) for i in lal_files]
-
-    error1 += await save_task(sds_tasks, SDS)
-    error2 += await save_task(sec_tasks, SEC)
-    error3 += await save_task(lal_tasks, LAL)
-
-    # SEC附件更新
-    sec_pdf_tasks = [asyncio.create_task(SEC.add_attach(
-        i)) for i in sec_files if i.name.lower().endswith("pdf")]
-    error2 += await save_pdf_task(sec_pdf_tasks, SEC)
-
+async def update_model(model: BaseModel):
+    '''扫描F盘文件, 更新模型'''
+    sds_files = scan(SDS_FOLDER)
+    tasks = []
+    for path, name in sds_files:
+        qcfile = await create_qcfile(path, name)
+        if qcfile is None:
+            continue
+        task = asyncio.create_task(model.from_ppt(qcfile))
+        tasks.append(task)
+    res = await asyncio.gather(*tasks)
+    updating, errors = [], []
+    for r, e in res:
+        updating += r
+        if e is not None:
+            errors.append(e)
+    # 更新数据库
+    # with db.atomic():
+    #     model.bulk_create(updating, batch_size=100)
     # 输出错误文件
-    print("输出")
-    errors = error1 + error2 + error3
-    df = pd.DataFrame(errors, columns=["path", "name", "error"])
-    df.to_excel("errors.xlsx", index=False)
-    print("完成")
+    pd.DataFrame(
+        errors,
+        columns=["path", "name", "error"]
+    ).to_excel("out/errors.xlsx", index=False)
 
 
 def clean(Model):
