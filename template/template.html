@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <title>CoA模板</title>
+</head>
+<body>
+    <div class="root">
+        <div class="content">
+            <div class="header">
+                <div class="left">
+                    <h4>{{ protein.name }}</h4>
+                    <span>Cat. No.: {{ protein.cat_no }}</span>
+                    <span>Lot. No.: {{ protein.lot_no }}</span>
+                </div>
+                <img src="logo.png" alt="">
+            </div>
+            <div class="space">
+                <span>Description</span>
+            </div>
+            <table>
+                <tr>
+                    <td class="title">Product Name</td>
+                    <td>{{ protein.name }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Molecular<br>Characterization</td>
+                    <td>{{ protein.characterization }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Concentration</td>
+                    <td>{{ protein.conc }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Endotoxin</td>
+                    <td>{{ protein.endotoxin }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Production Lot<br>Number</td>
+                    <td>{{ protein.batch_no }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Appearance</td>
+                    <td>{{ protein.appearance }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Formulation</td>
+                    <td>{{ protein.formulation }}</td>
+                </tr>
+                <tr>
+                    <td class="title">Storage</td>
+                    <td>{{ protein.storage }}</td>
+                </tr>
+            </table>
+            <div class="space">
+                <span>Data</span>
+            </div>
+            <div class="detail">
+                <div class="sds">
+                    <h4>SDS</h4>
+                    <img src="logo.png" alt="">
+                    <p>{{ protein.sds_conclusion }}</p>
+                </div>
+                <div class="sec">
+                    <h4>SEC</h4>
+                    <img src="logo.png" alt="">
+                    <p>{{ protein.sec_conclusion }}</p>
+                </div>
+                <!-- {% if protein.elisa_conclusion -%} -->
+                <div class="elisa">
+                    <h4>ELISA</h4>
+                    <img src="logo.png" alt="">
+                    <p>{{ protein.sec_conclusion }}</p>
+                </div>
+                <!-- {%- endif %} -->
+            </div>
+            <div class="footer">
+                <p>For research use only. Not for use in humans.</p>
+                <p>Please contact us via <a href="mailto:Service@sanyoubio.com">Service@sanyoubio.com</a>, if you have any questions, suggestions, and/or requirements.</p>
+                <p><a href="mailto:www.sanyoubio.com">www.sanyoubio.com</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,14 +1,15 @@
 import os
 import shutil
-from datetime import datetime
-from concurrent.futures import ProcessPoolExecutor
-import pandas as pd
-from model import *
-import fitz
-from sds_reader import pre_cut, gel_crop
-import numpy as np
-import cv2
 import asyncio
+from datetime import datetime
+
+import cv2
+import fitz
+import numpy as np
+import pandas as pd
+from sds_reader import pre_cut, gel_crop
+
+from model import *
 
 
 BASE_DIR = r"\\192.168.29.200\f\service\0.样品管理部\01 蛋白库相关\06 蛋白编号\00 理化质检-P90000之后在这里查理化质检结果"
@@ -19,6 +20,28 @@ WHITE = [
     fr"{SEC_FOLDER}\Thumbs.db",
     fr"{LAL_FOLDER}\230624-1\【LAL定量】 做样表-ZY230624-1.xlsx",
 ]
+
+
+def create_qcfile(path, name):
+    try:
+        mtime = os.path.getmtime(Path(path) / name)
+        mtime = datetime.fromtimestamp(mtime)
+        qcfile, created = QCFile.get_or_create(
+            name=name,
+            defaults={"path": path, "modified": mtime}
+        )
+        if created:
+            return qcfile, None
+        elif qcfile.modified < mtime:
+            qcfile.path = path
+            qcfile.modified = mtime
+            qcfile.save()
+            return qcfile, None
+        else:
+            return None, None
+    except Exception as e:
+        return None, {"path": path, "name": name, "error": str(e)}
+
 
 def scan(dir):
     '''扫描文件夹, 返回待更新文件和错误文件'''
@@ -32,16 +55,17 @@ def scan(dir):
             elif i.path not in WHITE:
                 if i.name.startswith("~$"):
                     continue
-                if not(i.name.lower().endswith("pptx") or i.name.lower().endswith("pdf")):
-                    errors.append({"path":i.path, "name":i.name, "error":"Is not PPT or PDF"})
+                if not (i.name.lower().endswith("pptx") or i.name.lower().endswith("pdf")):
+                    errors.append({"path": i.path, "name": i.name,
+                                  "error": "Is not PPT or PDF"})
                 else:
                     try:
                         mtime = os.path.getmtime(i)
                         mtime = datetime.fromtimestamp(mtime)
                         folder = i.path.replace(i.name, "")[:-1]
                         qcfile, created = QCFile.get_or_create(
-                            name=i.name, 
-                            defaults={"path":folder, "modified":mtime}
+                            name=i.name,
+                            defaults={"path": folder, "modified": mtime}
                         )
                         if created:
                             res.append(qcfile)
@@ -51,8 +75,10 @@ def scan(dir):
                             qcfile.save()
                             res.append(qcfile)
                     except Exception as e:
-                        errors.append({"path":i.path, "name":i.name, "error":str(e)})
+                        errors.append(
+                            {"path": i.path, "name": i.name, "error": str(e)})
     return res, errors
+
 
 async def save_task(tasks, Model):
     task_results = await asyncio.gather(*tasks)
@@ -65,8 +91,9 @@ async def save_task(tasks, Model):
         Model.bulk_create(unsaved, batch_size=100)
         for f, msg in failed:
             f.delete_instance()
-            res.append({"path":f.path, "name":f.name, "error":msg})
+            res.append({"path": f.path, "name": f.name, "error": msg})
     return res
+
 
 async def save_pdf_task(tasks, Model):
     task_results = await asyncio.gather(*tasks)
@@ -79,8 +106,9 @@ async def save_pdf_task(tasks, Model):
         Model.bulk_update(unsaved, fields=["attach"], batch_size=100)
         for f, msg in failed:
             f.delete_instance()
-            res.append({"path":f.path, "name":f.name, "error":msg})
+            res.append({"path": f.path, "name": f.name, "error": msg})
     return res
+
 
 async def update_ssl():
     print("备份")
@@ -90,16 +118,18 @@ async def update_ssl():
     sds_files, error1 = scan(SDS_FOLDER)
     sds_tasks = [asyncio.create_task(SDS.from_ppt(i)) for i in sds_files]
     sec_files, error2 = scan(SEC_FOLDER)
-    sec_tasks = [asyncio.create_task(SEC.from_ppt(i)) for i in sec_files if i.name.lower().endswith("pptx")]
+    sec_tasks = [asyncio.create_task(SEC.from_ppt(
+        i)) for i in sec_files if i.name.lower().endswith("pptx")]
     lal_files, error3 = scan(LAL_FOLDER)
     lal_tasks = [asyncio.create_task(LAL.from_ppt(i)) for i in lal_files]
-    
+
     error1 += await save_task(sds_tasks, SDS)
     error2 += await save_task(sec_tasks, SEC)
     error3 += await save_task(lal_tasks, LAL)
 
     # SEC附件更新
-    sec_pdf_tasks = [asyncio.create_task(SEC.add_attach(i)) for i in sec_files if i.name.lower().endswith("pdf")]
+    sec_pdf_tasks = [asyncio.create_task(SEC.add_attach(
+        i)) for i in sec_files if i.name.lower().endswith("pdf")]
     error2 += await save_pdf_task(sec_pdf_tasks, SEC)
 
     # 输出错误文件
@@ -109,6 +139,7 @@ async def update_ssl():
     df.to_excel("errors.xlsx", index=False)
     print("完成")
 
+
 def clean(Model):
     '''清洗数据库，删除重复项'''
     deleting = set()
@@ -117,24 +148,24 @@ def clean(Model):
         query = None
         if Model == SDS:
             query = Model.select().where(
-                Model.pid==item.pid, 
-                Model.purity==item.purity, 
-                Model.source==item.source
+                Model.pid == item.pid,
+                Model.purity == item.purity,
+                Model.source == item.source
             )
         elif Model == SEC:
             query = Model.select().where(
-                Model.pid==item.pid,
-                Model.retention_time==item.retention_time,
-                Model.hmw==item.hmw,
-                Model.monomer==item.monomer,
-                Model.lmw==item.lmw,
-                Model.source==item.source
+                Model.pid == item.pid,
+                Model.retention_time == item.retention_time,
+                Model.hmw == item.hmw,
+                Model.monomer == item.monomer,
+                Model.lmw == item.lmw,
+                Model.source == item.source
             )
         elif Model == LAL:
             query = Model.select().where(
-                Model.pid==item.pid, 
-                Model.value==item.value, 
-                Model.source==item.source
+                Model.pid == item.pid,
+                Model.value == item.value,
+                Model.source == item.source
             )
         if len(query) > 1:
             i_set = [i.id for i in query]
@@ -145,15 +176,17 @@ def clean(Model):
         for d in deleting:
             Model.get(Model.id == d).delete_instance()
 
+
 def backup():
     '''备份数据库'''
     shutil.copy("sqlite.db", "sqlite_bak.db")
 
-def extract_sds(sds:SDS):
+
+def extract_sds(sds: SDS):
     '''提取SDS图片'''
     # 转换长文件路径
     pathname = sds.source.pathname
-    pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
+    pathname = GetShortPathName(pathname) if len(pathname) > 255 else pathname
     ppt = ZipFile(pathname)
     slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
     # 解析PPT XML数据
@@ -178,6 +211,7 @@ def extract_sds(sds:SDS):
                             img = f"{sds.pid}/SDS/{img}"
     return img, lane
 
+
 def extract_sds_lane(img, lane):
     img, img_gray = pre_cut(img, cut_bg=True)
     lines = gel_crop(img_gray)
@@ -190,11 +224,12 @@ def extract_sds_lane(img, lane):
     temp[40:, 60:] = sds_img
     return temp
 
-def extract_sec(sec:SEC):
+
+def extract_sec(sec: SEC):
     '''提取SEC图片'''
     # 获取图号
     pathname = sec.source.pathname
-    pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
+    pathname = GetShortPathName(pathname) if len(pathname) > 255 else pathname
     ppt = ZipFile(pathname)
     slides = [i for i in ppt.namelist() if i.startswith("ppt/slides/slide")]
     for s in slides:
@@ -210,7 +245,7 @@ def extract_sec(sec:SEC):
     if sec.attach:
         # 提取PDF
         pdfpath = sec.attach.pathname
-        pdfpath = GetShortPathName(pdfpath) if len(pdfpath)>255 else pdfpath
+        pdfpath = GetShortPathName(pdfpath) if len(pdfpath) > 255 else pdfpath
         try:
             pdf = fitz.open(pdfpath)
             page = pdf[int(pic)-1]
@@ -235,7 +270,7 @@ def extract_sec(sec:SEC):
             with ppt.open(s) as slide:
                 bs = BeautifulSoup(slide, features="xml")
                 title = bs.find("p:ph", type="title")
-                if title and title.parent.parent.parent.text==pic:
+                if title and title.parent.parent.parent.text == pic:
                     # 提取图片
                     rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
                     with ppt.open(rel) as slide_rel:
@@ -248,6 +283,7 @@ def extract_sec(sec:SEC):
                         img = f"{sec.pid}/SEC/{img}"
     return img
 
+
 def cut_sec(img):
     sec_img = cv2.imread(img)
-    cv2.imwrite(img, sec_img[1000:1900,:])
+    cv2.imwrite(img, sec_img[1000:1900, :])

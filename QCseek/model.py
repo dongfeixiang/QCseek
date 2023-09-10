@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import time
 import cv2
 
-from async3rd import PPTX
+from QCseek.pptx import PPTX
 
 
 class NoPidColumn(Exception):
