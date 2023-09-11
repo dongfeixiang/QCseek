@@ -25,6 +25,8 @@ WHITE = []
 
 async def create_qcfile(path: str, name: str):
     '''
+    从文件创建`QCFile`实例
+
     Args:
         - `path`: 文件路径
         - `name`: 文件名
@@ -65,30 +67,69 @@ def scan(dir):
     return res
 
 
-async def update_model(model: BaseModel):
-    '''扫描F盘文件, 更新模型'''
-    sds_files = scan(SDS_FOLDER)
-    tasks = []
-    for path, name in sds_files:
+async def create_ssl(path: str, name: str, model: BaseModel):
+    '''
+    从文件批量创建SDS/SEC/LAL实例
+
+    Args:
+        - `path`: 文件路径
+        - `name`: 文件名
+        - `model`: 创建模型类型
+
+    Returns:
+        - list[BaseModel]: 待保存模型实例列表
+        - dict[] | None: 错误字典
+    '''
+    try:
+        qcfile = None
         qcfile = await create_qcfile(path, name)
         if qcfile is None:
-            continue
-        task = asyncio.create_task(model.from_ppt(qcfile))
-        tasks.append(task)
-    res = await asyncio.gather(*tasks)
-    updating, errors = [], []
-    for r, e in res:
-        updating += r
-        if e is not None:
-            errors.append(e)
-    # 更新数据库
-    # with db.atomic():
-    #     model.bulk_create(updating, batch_size=100)
-    # 输出错误文件
-    pd.DataFrame(
-        errors,
-        columns=["path", "name", "error"]
-    ).to_excel("out/errors.xlsx", index=False)
+            return [], None
+        else:
+            updating = await model.from_qcfile(qcfile)
+            return updating, None
+    except Exception as e:
+        # 删除发生错误的实例
+        if qcfile is not None:
+            with db.atomic():
+                qcfile.delete_instance()
+        return [], {
+            "path": path,
+            "name": name,
+            "error": f"{type(e).__name__}({e})"
+        }
+
+
+async def attach_pdf(path: str, name: str):
+    '''
+    从文件添加SEC模型attach
+
+    Args:
+        - `path`: 文件路径
+        - `name`: 文件名
+
+    Returns:
+        - list[BaseModel]: 待更新SEC实例列表
+        - dict[] | None: 错误字典
+    '''
+    try:
+        qcfile = None
+        qcfile = await create_qcfile(path, name)
+        if qcfile is None:
+            return [], None
+        else:
+            updating = await SEC.add_attach(qcfile)
+            return updating, None
+    except Exception as e:
+        # 删除发生错误的实例
+        if qcfile is not None:
+            with db.atomic():
+                qcfile.delete_instance()
+        return [], {
+            "path": path,
+            "name": name,
+            "error": f"{type(e).__name__}({e})"
+        }
 
 
 def clean(Model):

@@ -1,5 +1,6 @@
 import asyncio
 from zipfile import ZipFile
+from typing import overload
 
 import cv2
 import numpy as np
@@ -8,6 +9,10 @@ from bs4 import BeautifulSoup
 
 
 class PPTX():
+    '''
+    异步风格PPT操作类, 支持`async`/`await`
+    '''
+
     def __init__(self, path):
         self._path = path
         self._zipfile = None
@@ -41,12 +46,21 @@ class PPTX():
             tables += await slide.get_tables()
         return tables
 
-    async def get_image(self, xref):
+    @overload
+    async def get_image(self, xref: str):
         fb = await self.read(xref)
         return cv2.imdecode(np.fromstring(fb, dtype=np.uint8), 1)
 
+    @overload
+    async def get_image(self, index: int):
+        return
+
 
 class Slide():
+    '''
+    异步风格Slide操作类, 支持`async`/`await`
+    '''
+
     def __init__(self):
         self._bs = None
         self._rel = None

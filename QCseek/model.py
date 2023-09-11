@@ -1,20 +1,11 @@
-from zipfile import ZipFile
-from pathlib import Path
+from pandas import DataFrame
 from win32api import GetShortPathName
 from peewee import (
     SqliteDatabase, Model, IntegerField,
     CharField, DateTimeField, ForeignKeyField
 )
-from bs4 import BeautifulSoup
-from pandas import DataFrame
-import time
-import cv2
 
 from .pptx import PPTX
-
-
-class NoLALColumn(Exception):
-    pass
 
 
 db = SqliteDatabase("sqlite.db", pragmas={
@@ -37,6 +28,14 @@ class QCFile(BaseModel):
     @property
     def pathname(self):
         return f"{self.path}/{self.name}"
+
+    @property
+    def shortpathname(self):
+        '''获取Windows下文件短路径'''
+        if len(self.pathname) >= 255:
+            return GetShortPathName(self.pathname)
+        else:
+            return self.pathname
 
 
 class SDS(BaseModel):
@@ -74,24 +73,19 @@ class SDS(BaseModel):
 
     @classmethod
     async def from_qcfile(cls, src: QCFile):
-        '''从PPT中提取SDS数据'''
-        # 转换长文件路径
         res = []
-        pathname = src.pathname
-        pathname = GetShortPathName(pathname) if len(
-            pathname) > 255 else pathname
-        async with PPTX(pathname) as ppt:
+        async with PPTX(src.shortpathname) as ppt:
             async for slide in ppt.slides():
                 tables = await slide.get_tables()
                 if not tables:
                     continue
                 elif len(tables) > 1:
-                    raise ValueError("multiTables")
+                    raise ValueError("MultiTables")
                 images = await slide.get_image_names()
                 if not images:
-                    raise ValueError("noImage")
+                    raise ValueError("NoImage")
                 if len(images) > 1:
-                    raise ValueError("multiImage")
+                    raise ValueError("MultiImages")
                 sds_list = await cls.from_dataframe(tables[0])
                 for sds in sds_list:
                     sds.source = src
@@ -108,85 +102,69 @@ class SEC(BaseModel):
     lmw = CharField(max_length=20)
     source = ForeignKeyField(QCFile, backref="sec_set", on_delete="CASCADE")
     attach = ForeignKeyField(QCFile, backref="sec_attach_set", null=True)
+    pic_num = IntegerField(null=True)
 
     @classmethod
-    async def from_ppt(cls, src: QCFile):
-        '''从PPT中提取SEC数据'''
-        try:
-            # 转换长文件路径
-            pathname = src.pathname
-            pathname = GetShortPathName(pathname) if len(
-                pathname) > 255 else pathname
-            ppt = ZipFile(pathname)
-            slides = (i for i in ppt.namelist()
-                      if i.startswith("ppt/slides/slide"))
-            # 解析PPT XML数据
-            res = []
-            for s in slides:
-                with ppt.open(s) as slide:
-                    bs = BeautifulSoup(slide, features="xml")
-                    table = bs.find("a:graphicData")
-                    if table:
-                        rows = table.find_all("a:tr")
-                        heads = [
-                            item.text for item in rows[0].find_all("a:tc")]
-                        # 查找 pid...字段
-                        pid_i, rt_i, hmw_i, monomer_i, lmw_i = None, None, None, None, None
-                        for i, value in enumerate(heads):
-                            if value in ["蛋白编号", "CoA编号", "P编号"]:
-                                pid_i = i
-                            elif value in ["单体保留时间（min）"]:
-                                rt_i = i
-                            elif value in ["高分子聚合物(%)"]:
-                                hmw_i = i
-                            elif value in ["单体(%)"]:
-                                monomer_i = i
-                            elif value in ["低分子量物质(%)"]:
-                                lmw_i = i
-                        if pid_i is None:
-                            return [], src, "NoPidColumn"
-                        if rt_i is None:
-                            return [], src, "NoRTColumn"
-                        if hmw_i is None:
-                            return [], src, "NoHMWColumn"
-                        if monomer_i is None:
-                            return [], src, "NoMonomerColumn"
-                        if lmw_i is None:
-                            return [], src, "NoLMWColumn"
-                        # 保存行数据
-                        for r in rows[1:]:
-                            cols = r.find_all("a:tc")
-                            pid = cols[pid_i].text
-                            rt = cols[rt_i].text
-                            hmw = cols[hmw_i].text
-                            monomer = cols[monomer_i].text
-                            lmw = cols[lmw_i].text
-                            exist = cls.get_or_none(
-                                pid=pid, retention_time=rt, hmw=hmw,
-                                monomer=monomer, lmw=lmw, source=src)
-                            if not exist:
-                                res.append(cls(
-                                    pid=pid, retention_time=rt, hmw=hmw,
-                                    monomer=monomer, lmw=lmw, source=src))
-            return res, None, None
-        except Exception as e:
-            return [], src, str(e)
+    async def from_dataframe(cls, df: DataFrame):
+        pid_i, rt_i, hmw_i, monomer_i, lmw_i = None, None, None, None, None
+        for index in df.columns:
+            if index in ["蛋白编号", "CoA编号", "P编号"]:
+                pid_i = index
+            elif index in ["单体保留时间（min）"]:
+                rt_i = index
+            elif index in ["高分子聚合物(%)"]:
+                hmw_i = index
+            elif index in ["单体(%)"]:
+                monomer_i = index
+            elif index in ["低分子量物质(%)"]:
+                lmw_i = index
+        if pid_i is None:
+            raise IndexError("NoPidColumn")
+        if rt_i is None:
+            raise IndexError("NoRTColumn")
+        if hmw_i is None:
+            raise IndexError("NoHMWColumn")
+        if monomer_i is None:
+            raise IndexError("NoMonomerColumn")
+        if lmw_i is None:
+            raise IndexError("NoLMWColumn")
+        res = []
+        # pic_num未处理
+        for i in df.index:
+            sec = cls(
+                pid=df[pid_i][i],
+                retention_time=df[rt_i][i],
+                hmw=df[hmw_i][i],
+                monomer=df[monomer_i][i],
+                lmw=df[lmw_i][i]
+            )
+            res.append(sec)
+        return res
+
+    @classmethod
+    async def from_qcfile(cls, src: QCFile):
+        res = []
+        async with PPTX(src.shortpathname) as ppt:
+            tables = await ppt.get_tables()
+            # 未处理pic_num
+            for t in tables:
+                res += await cls.from_dataframe(t)
+        return res
 
     @classmethod
     async def add_attach(cls, src: QCFile):
-        try:
-            pdf = src.name[:-4]
-            query = cls.select().join(QCFile, on=(cls.source == QCFile.id)
-                                      ).where(QCFile.name.contains(pdf))
-            updating = []
-            for i in query:
-                i.attach = src
-                updating.append(i)
-            if not updating:
-                return [], src, "NoRelatedPPT"
-            return updating, None, None
-        except Exception as e:
-            return [], src, str(e)
+        pdf = src.name[:-4]
+        query = cls.select().join(
+            QCFile,
+            on=(cls.source == QCFile.id)
+        ).where(QCFile.name.contains(pdf))
+        if not query:
+            raise ValueError("NoRelatedPPT")
+        updating = []
+        for i in query:
+            i.attach = src
+            updating.append(i)
+        return updating
 
 
 class LAL(BaseModel):
@@ -195,52 +173,35 @@ class LAL(BaseModel):
     source = ForeignKeyField(QCFile, backref="lal_set", on_delete="CASCADE")
 
     @classmethod
-    async def from_ppt(cls, src: QCFile):
-        '''从PPT中获取LAL信息'''
-        try:
-            # 转换长文件路径
-            pathname = src.pathname
-            pathname = GetShortPathName(pathname) if len(
-                pathname) > 255 else pathname
-            ppt = ZipFile(pathname)
-            slides = (i for i in ppt.namelist()
-                      if i.startswith("ppt/slides/slide"))
-            # 解析PPT XML数据
-            res = []
-            for s in slides:
-                with ppt.open(s) as slide:
-                    bs = BeautifulSoup(slide, features="xml")
-                    table = bs.find("a:graphicData")
-                    if table:
-                        rows = table.find_all("a:tr")
-                        heads = [
-                            item.text for item in rows[0].find_all("a:tc")]
-                        # 查找 pid, lal字段
-                        pid_i, lal_i = None, None
-                        for i, value in enumerate(heads):
-                            if value in ["蛋白编号", "CoA#", "P编号"]:
-                                pid_i = i
-                            elif value in ["结果(EU/mg)"]:
-                                lal_i = i
-                        if pid_i is None:
-                            return [], src, "NoPidColumn"
-                        if lal_i is None:
-                            # continue
-                            return [], src, "NoLALColumn"
-                        # 保存行数据
-                        for r in rows[1:]:
-                            cols = r.find_all("a:tc")
-                            pid = cols[pid_i].text
-                            if (not pid) or (pid.isspace()):
-                                continue
-                            lal = cols[lal_i].text
-                            exist = cls.get_or_none(
-                                pid=pid, value=lal, source=src)
-                            if not exist:
-                                res.append(cls(pid=pid, value=lal, source=src))
-            return res, None, None
-        except Exception as e:
-            return [], src, str(e)
+    async def from_dataframe(cls, df: DataFrame):
+        pid_i, lal_i = None, None
+        for index in df.columns:
+            if index in ["蛋白编号", "CoA#", "P编号"]:
+                pid_i = index
+            elif index in ["结果(EU/mg)"]:
+                lal_i = index
+        if pid_i is None:
+            raise IndexError("NoPidColumn")
+        if lal_i is None:
+            # continue
+            raise IndexError("NoLALColumn")
+        res = []
+        for i in df.index:
+            if (not df[pid_i][i]) or (df[pid_i][i].isspace()):
+                continue
+            lal = cls(pid=df[pid_i][i], value=df[lal_i][i])
+            res.append(lal)
+        return res
+
+    @classmethod
+    async def from_qcfile(cls, src: QCFile):
+        res = []
+        async with PPTX(src.shortpathname) as ppt:
+            tables = await ppt.get_tables()
+            # 未处理source
+            for t in tables:
+                res += await cls.from_dataframe(t)
+        return res
 
 
-db.create_tables([SDS, QCFile])
+db.create_tables([SDS, SEC, LAL, QCFile])

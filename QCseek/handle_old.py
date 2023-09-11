@@ -8,7 +8,7 @@ import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
 from .model import *
-from .view import *
+from .view import create_qcfile, create_ssl, attach_pdf
 
 
 BASE_DIRS = Path(r"Z:\service\0.样品管理部\01 蛋白库相关\06 蛋白编号")
@@ -26,7 +26,7 @@ SSL_DIRS = [
 ]
 WHITE = []
 
-# 同步方法
+
 def scan(dir):
     '''扫描文件夹, 返回PPTX, PDF列表'''
     res = []
@@ -42,6 +42,7 @@ def scan(dir):
                     folder = i.path.replace(i.name, "")[:-1]
                     res.append({"path": folder, "name": i.name})
     return res
+
 
 def collect_files():
     '''保存扫描后的文件到EXCEL'''
@@ -60,29 +61,11 @@ def collect_files():
             columns=["path", "name"]
         ).to_excel(name, index=False)
 
-async def create_from_file(handle, path, name):
-    try:
-        qcfile = None
-        qcfile = await create_qcfile(path, name)
-        if qcfile is None:
-            return [], None
-        else:
-            updating = await handle(qcfile)
-            return updating, None
-    except Exception as e:
-        print(e)
-        # 单个删除耗时
-        # if qcfile is not None:
-        #     qcfile.delete_instance()
-        return [], {
-            "path": path,
-            "name": name,
-            "error": f"{type(e).__name__}({e})"
-        }
 
-async def update_model(datafile: str):
+async def update_ssl(datafile: str, model: BaseModel):
+    '''从EXCEL表批量创建SDS/SEC/LAL'''
     df = pd.read_excel(datafile)
-    tasks = [asyncio.create_task(create_from_file(SDS.from_qcfile, path, name))
+    tasks = [asyncio.create_task(create_ssl(path, name, model))
              for path, name in df.itertuples(index=False)]
     res = await tqdm_asyncio.gather(*tasks)
     updating, errors = [], []
@@ -91,8 +74,8 @@ async def update_model(datafile: str):
         if e is not None:
             errors.append(e)
     # 更新数据库
-    # with db.atomic():
-    #     model.bulk_create(updating, batch_size=100)
+    with db.atomic():
+        model.bulk_create(updating, batch_size=100)
     # 输出错误文件
     out = datafile.split(".")
     out = "_error.".join(out)
@@ -102,15 +85,11 @@ async def update_model(datafile: str):
     ).to_excel(out, index=False)
 
 
-async def attach_pdf(datafile: str):
+async def update_pdf(datafile: str):
+    '''从EXCEL表批量添加SEC PDF附件'''
     df = pd.read_excel(datafile)
-    tasks = []
-    for path, name in df.itertuples():
-        qcfile = await create_qcfile(path, name)
-        if qcfile is None:
-            continue
-        task = asyncio.create_task(SEC.add_attach(qcfile))
-        tasks.append(task)
+    tasks = [asyncio.create_task(attach_pdf(path, name))
+             for path, name in df.itertuples(index=False)]
     res = await tqdm_asyncio.gather(*tasks)
     updating, errors = [], []
     for r, e in res:
@@ -118,8 +97,8 @@ async def attach_pdf(datafile: str):
         if e is not None:
             errors.append(e)
     # 更新数据库
-    # with db.atomic():
-    #     SEC.bulk_update(updating, fields=["attach"], batch_size=100)
+    with db.atomic():
+        SEC.bulk_update(updating, fields=["attach"], batch_size=100)
     # 输出错误文件
     out = datafile.split(".")
     out = "_error.".join(out)

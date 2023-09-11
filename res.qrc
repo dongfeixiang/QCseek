@@ -1,0 +1,10 @@
+<RCC>
+  <qresource prefix="icon">
+    <file>template/logo.png</file>
+    <file>C:/Users/22160/Downloads/关闭 (1).png</file>
+    <file>C:/Users/22160/Downloads/关闭.png</file>
+    <file>C:/Users/22160/Downloads/Minimize-2.png</file>
+    <file>C:/Users/22160/Downloads/Maximize-3.png</file>
+    <file>C:/Users/22160/Downloads/Maximize-1.png</file>
+  </qresource>
+</RCC>

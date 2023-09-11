@@ -1,90 +1,4 @@
-from model import *
-from zipfile import ZipFile
-import shutil
-import fitz
-import pandas as pd
-from component import *
-import cv2
-import numpy as np
-import pymysql
-import json
-from tqdm.tk import tqdm
-import time
-import sys
-import io
-import tkinter as tk
 
-
-BASE_DIR = r"\\192.168.29.200\f\service\1.创新研发部\FM1\FM1-蛋白表达纯化及理化分析平台汇总\胶图"
-
-def extract_sds(sds:SDS):
-    # 转换长文件路径
-    pathname = sds.source.pathname
-    pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
-    ppt = ZipFile(pathname)
-    slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
-    # 解析PPT XML数据
-    for s in slides:
-        with ppt.open(s) as slide:
-            bs = BeautifulSoup(slide, features="xml")
-            if sds.pid in bs.text:
-                # 获取泳道
-                trs = bs.find_all("a:tr")
-                for tr in trs:
-                    if sds.pid in tr.text:
-                        lane = int(tr.find("tc").text)
-                # 提取图片
-                rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-                with ppt.open(rel) as slide_rel:
-                    rel_bs = BeautifulSoup(slide_rel, features="xml")
-                    relationships = rel_bs.find_all("Relationship")
-                    for re in relationships:
-                        if "media" in re["Target"]:
-                            img = re["Target"].replace("..", "ppt")
-                            ppt.extract(img, sds.pid)
-                            img = f"{sds.pid}/{img}"
-    return img, lane
-
-def extract_sec(sec:SEC):
-    if sec.attach:
-        # 提取PDF
-        print(sec.attach.pathname)
-    else:
-        # 提取PPT
-        pathname = sec.source.pathname
-        pathname = GetShortPathName(pathname) if len(pathname)>255 else pathname
-        ppt = ZipFile(pathname)
-        slides = [i for i in ppt.namelist() if i.startswith("ppt/slides/slide")]
-        ppt.extractall("temp")
-        for s in slides:
-            with ppt.open(s) as slide:
-                bs = BeautifulSoup(slide, features="xml")
-                # 获取图号
-                trs = bs.find_all("a:tr")
-                for tr in trs:
-                    if sec.pid in tr.text:
-                        pic = tr.find("tc").text
-        for s in slides:
-            with ppt.open(s) as slide:
-                bs = BeautifulSoup(slide, features="xml")
-                title = bs.find("p:ph", type="title")
-                if title and title.parent.parent.parent.text==pic:
-                    # 提取图片
-                    rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-                    with ppt.open(rel) as slide_rel:
-                        rel_bs = BeautifulSoup(slide_rel, features="xml")
-                        relationships = rel_bs.find_all("Relationship")
-                        for re in relationships:
-                            if "media" in re["Target"]:
-                                img = re["Target"].replace("..", "ppt")
-                                ppt.extract(img, sec.pid)
-                                img = f"{sec.pid}/{img}"
-        return img
-
-def generate_coa(row:QCRow):
-    sds_img, lane = extract_sds(row.sds)
-    sec_img = extract_sec(row.sec)
-    
 # conn = pymysql.connect(
 #     host='139.224.83.66',
 #     user='erp_readonly',
@@ -121,25 +35,25 @@ def generate_coa(row:QCRow):
 
 # ('stock_sample',)
 
-#0 (('id', 'bigint', 'NO', 'PRI', None, 'auto_increment'), 
-#1 ('company_id', 'bigint', 'YES', 'MUL', None, ''), 
-#2 ('prefix', 'varchar(255)', 'YES', '', None, ''), 
-#3 ('no', 'varchar(50)', 'YES', '', None, ''), 
-#4 ('batch', 'int', 'YES', '', None, ''), 
-#5 ('merge_no', 'varchar(255)', 'YE 'YES', '', None, ''), 
-#6 ('privacy_id', 'int', 'YES', '', None, ''), 
-#7 ('temperature_id', 'bigint', 'YES', '', None, ''), 
-#8 ('property', 'varchar(2000)', 'YES', '', None, ''), 
-# ('warning_num', 'decimal(20,3)', 'YES', '', None, ''), 
-# ('remark', 'varchar(255)', 'YES', '', None, ''), 
-# ('state', 'bigint', 'YES', '', None, ''), 
-# ('days', 'int', 'YES', '', None, ''), 
-# ('total_num', 'decimal(20,8)', 'YES', '', None, ''), 
-# ('need_show', 'tinyint(1)', 'YES', '', None, ''), 
-# ('from_type', 'int', 'YES', '', None, ''), 
-# ('create_time', 'datetime', 'YES', '', None, ''), 
-# ('del', 'tinyint(1)', 'YES', '', None, ''), 
-# ('update_time', 'datetime', 'NO', '', 'CURRENT_TIMESTAMP', 'DEFAULT_GENERATED on 
+# 0 (('id', 'bigint', 'NO', 'PRI', None, 'auto_increment'),
+# 1 ('company_id', 'bigint', 'YES', 'MUL', None, ''),
+# 2 ('prefix', 'varchar(255)', 'YES', '', None, ''),
+# 3 ('no', 'varchar(50)', 'YES', '', None, ''),
+# 4 ('batch', 'int', 'YES', '', None, ''),
+# 5 ('merge_no', 'varchar(255)', 'YE 'YES', '', None, ''),
+# 6 ('privacy_id', 'int', 'YES', '', None, ''),
+# 7 ('temperature_id', 'bigint', 'YES', '', None, ''),
+# 8 ('property', 'varchar(2000)', 'YES', '', None, ''),
+# ('warning_num', 'decimal(20,3)', 'YES', '', None, ''),
+# ('remark', 'varchar(255)', 'YES', '', None, ''),
+# ('state', 'bigint', 'YES', '', None, ''),
+# ('days', 'int', 'YES', '', None, ''),
+# ('total_num', 'decimal(20,8)', 'YES', '', None, ''),
+# ('need_show', 'tinyint(1)', 'YES', '', None, ''),
+# ('from_type', 'int', 'YES', '', None, ''),
+# ('create_time', 'datetime', 'YES', '', None, ''),
+# ('del', 'tinyint(1)', 'YES', '', None, ''),
+# ('update_time', 'datetime', 'NO', '', 'CURRENT_TIMESTAMP', 'DEFAULT_GENERATED on
 # update CURRENT_TIMESTAMP'))
 
 # temp = cv2.imread("temp.png")
@@ -151,4 +65,3 @@ def generate_coa(row:QCRow):
 # # sec = SEC.get(SEC.id==13002)
 # # row = QCRow(sds.pid, sds, sec, None)
 # # generate_coa(row)
-
