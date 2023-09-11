@@ -32,7 +32,7 @@ async def create_qcfile(path: str, name: str):
     Returns:
         - QCFile | None
     '''
-    mtime = os.path.getmtime(Path(path) / name)
+    mtime = await asyncio.to_thread(os.path.getmtime, Path(path) / name)
     mtime = datetime.fromtimestamp(mtime)
     qcfile, created = QCFile.get_or_create(
         name=name,

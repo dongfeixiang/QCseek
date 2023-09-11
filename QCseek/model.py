@@ -2,22 +2,15 @@ from zipfile import ZipFile
 from pathlib import Path
 from win32api import GetShortPathName
 from peewee import (
-    SqliteDatabase, Model,
+    SqliteDatabase, Model, IntegerField,
     CharField, DateTimeField, ForeignKeyField
 )
 from bs4 import BeautifulSoup
+from pandas import DataFrame
 import time
 import cv2
 
-from QCseek.pptx import PPTX
-
-
-class NoPidColumn(Exception):
-    pass
-
-
-class NoPurityColumn(Exception):
-    pass
+from .pptx import PPTX
 
 
 class NoLALColumn(Exception):
@@ -43,82 +36,68 @@ class QCFile(BaseModel):
 
     @property
     def pathname(self):
-        return str(Path(self.path) / self.name)
+        return f"{self.path}/{self.name}"
 
 
 class SDS(BaseModel):
     pid = CharField(max_length=20)
     purity = CharField(max_length=20)
     source = ForeignKeyField(QCFile, backref="sds_set", on_delete="CASCADE")
+    pic = CharField(max_length=255)
+    non_reduced_lane = IntegerField(null=True)
+    reduced_lane = IntegerField(null=True)
+
+    def __str__(self):
+        return f"SDS({self.pid},{self.purity},{self.pic},{self.non_reduced_lane},{self.reduced_lane})"
 
     @classmethod
-    async def from_ppt(cls, src: QCFile):
+    async def from_dataframe(cls, df: DataFrame):
+        pid_i, purity_i = None, None
+        for index in df.columns:
+            if index in ["蛋白编号", "CoA#"]:
+                pid_i = index
+            elif "纯度" in index:
+                purity_i = index
+        if pid_i is None:
+            raise IndexError("没有蛋白编号列")
+        if purity_i is None:
+            raise IndexError("没有纯度值列")
+        res = []
+        for i in df.index:
+            sds = cls(pid=df[pid_i][i], purity=df[purity_i][i])
+            no = int(df.iloc[i, 0]) if df.iloc[i, 0].isdigit() else None
+            if no is not None:
+                sds.non_reduced_lane = no
+                sds.reduced_lane = 8 + no
+            res.append(sds)
+        return res
+
+    @classmethod
+    async def from_qcfile(cls, src: QCFile):
         '''从PPT中提取SDS数据'''
-        try:
-            # 转换长文件路径
-            res = []
-            pathname = src.pathname
-            pathname = GetShortPathName(pathname) if len(
-                pathname) > 255 else pathname
-            async with PPTX(pathname) as ppt:
-                tables = await ppt.get_tables()
-            for df in tables:
-                if len(df.columns) > 10:
+        # 转换长文件路径
+        res = []
+        pathname = src.pathname
+        pathname = GetShortPathName(pathname) if len(
+            pathname) > 255 else pathname
+        async with PPTX(pathname) as ppt:
+            async for slide in ppt.slides():
+                tables = await slide.get_tables()
+                if not tables:
                     continue
-                pid_i, purity_i, lane_i = None, None, None
-                for index in df.columns:
-                    if index in ["蛋白编号", "CoA#"]:
-                        pid_i = index
-                    elif "纯度" in index:
-                        purity_i = index
-                    elif index in ["样品编号"]:
-                        lane_i = index
-                if pid_i is None:
-                    # continue
-                    return [], src, "NoPidColumn"
-                if purity_i is None:
-                    return [], src, "NoPurityColumn"
-                for i in df.index:
-                    exist = cls.get_or_none(
-                        pid=df[pid_i][i],
-                        purity=df[purity_i][i],
-                        source=src
-                    )
-                    if not exist:
-                        res.append(cls(
-                            pid=df[pid_i][i],
-                            purity=df[purity_i][i],
-                            source=src
-                        ))
-            return res
-        except Exception as e:
-            print(e)
-        # table_frames = bs.find_all("p:graphicFrame")
-        # x = [int(frame.find("p:xfrm").find("a:off")["x"]) for frame in table_frames]
-        # if x:
-        #     table = table_frames[x.index(max(x))].find("a:graphicData")
-        #     rows = table.find_all("a:tr")
-        #     heads = [item.text for item in rows[0].find_all("a:tc")]
-        #     # 查找 pid, purity字段
-        #     pid_i, purity_i = None, None
-        #     for i, value in enumerate(heads):
-        #         if value in ["蛋白编号","CoA#"]:
-        #             pid_i = i
-        #         elif "纯度" in value:
-        #             purity_i = i
-        #     if pid_i is None:
-        #         # continue
-        #         return [], src, "NoPidColumn"
-        #     if purity_i is None:
-        #         return [], src, "NoPurityColumn"
-        #     # 保存行数据
-        #     for r in rows[1:]:
-        #         cols = r.find_all("a:tc")
-        #         pid = cols[pid_i].text
-        #         purity = cols[purity_i].text
-        #         exist = cls.get_or_none(pid=pid, purity=purity, source=src)
-        #         if not exist:
-        #             res.append(cls(pid=pid, purity=purity, source=src))
+                elif len(tables) > 1:
+                    raise ValueError("multiTables")
+                images = await slide.get_image_names()
+                if not images:
+                    raise ValueError("noImage")
+                if len(images) > 1:
+                    raise ValueError("multiImage")
+                sds_list = await cls.from_dataframe(tables[0])
+                for sds in sds_list:
+                    sds.source = src
+                    sds.pic = images[0]
+                    res.append(sds)
+        return res
 
 
 class SEC(BaseModel):
@@ -264,4 +243,4 @@ class LAL(BaseModel):
             return [], src, str(e)
 
 
-# db.create_tables([SDS, SEC, LAL, QCFile])
+db.create_tables([SDS, QCFile])

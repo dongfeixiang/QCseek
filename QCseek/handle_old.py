@@ -1,4 +1,6 @@
 import os
+import time
+import logging
 import asyncio
 from pathlib import Path
 
@@ -24,50 +26,6 @@ SSL_DIRS = [
 ]
 WHITE = []
 
-# 异步方法
-# class DirScanner():
-#     def __init__(self, dir) -> None:
-#         self._dir = dir
-
-#     async def __aenter__(self):
-#         self._scanner = await asyncio.to_thread(os.scandir, self._dir)
-#         return self
-
-#     async def __aexit__(self, exc_type, exc_value, exc_tb):
-#         self._scanner.close()
-
-#     def __aiter__(self):
-#         return self
-
-#     async def __anext__(self):
-#         try:
-#             return next(self._scanner)
-#         except StopIteration:
-#             raise StopAsyncIteration
-
-
-# async def scan(dir):
-#     '''扫描文件夹, 返回PPTX, PDF列表'''
-#     res = []
-#     async with DirScanner(dir) as scanner:
-#         async for i in scanner:
-#             if i.is_dir():
-#                 res += await scan(i)
-#             elif i.path not in WHITE:
-#                 name = i.name.lower()
-#                 if name.endswith("pptx") or name.endswith("pdf"):
-#                     folder = i.path.replace(i.name, "")[:-1]
-#                     res.append({"path": folder, "name": i.name})
-#     return res
-
-
-# async def collect_files():
-#     dirs = ["D:\Document\Code\AssisTool"]
-#     tasks = [scan(dir) for dir in dirs*5000]
-#     res = await tqdm_asyncio.gather(*tasks)
-#     res = sum(res, [])
-
-
 # 同步方法
 def scan(dir):
     '''扫描文件夹, 返回PPTX, PDF列表'''
@@ -79,16 +37,16 @@ def scan(dir):
             # 排除白名单文件和Windows临时文件
             elif (i.path not in WHITE) and (not i.name.startswith("~$")):
                 name = i.name.lower()
+                # print(name)
                 if name.endswith("pptx") or name.endswith("pdf"):
                     folder = i.path.replace(i.name, "")[:-1]
                     res.append({"path": folder, "name": i.name})
     return res
 
-
 def collect_files():
     '''保存扫描后的文件到EXCEL'''
-    dirs = ["D:\Document\Code\AssisTool"]
-    res = [scan(dir) for dir in dirs*5000]
+    dirs = [r"Z:\service\0.样品管理部\01 蛋白库相关\06 蛋白编号\00 理化质检-P90000之后在这里查理化质检结果\SDS-PAGE"]
+    res = [scan(dir) for dir in dirs]
     res = sum(res, [])
     sds_files = [file for file in res if "SDS-PAGE" in file["name"]]
     sec_files = [file for file in res if "SEC" in file["name"]]
@@ -102,16 +60,30 @@ def collect_files():
             columns=["path", "name"]
         ).to_excel(name, index=False)
 
-
-async def update_model(datafile: str, model: BaseModel):
-    df = pd.read_excel(datafile)
-    tasks = []
-    for path, name in df.itertuples():
+async def create_from_file(handle, path, name):
+    try:
+        qcfile = None
         qcfile = await create_qcfile(path, name)
         if qcfile is None:
-            continue
-        task = asyncio.create_task(model.from_ppt(qcfile))
-        tasks.append(task)
+            return [], None
+        else:
+            updating = await handle(qcfile)
+            return updating, None
+    except Exception as e:
+        print(e)
+        # 单个删除耗时
+        # if qcfile is not None:
+        #     qcfile.delete_instance()
+        return [], {
+            "path": path,
+            "name": name,
+            "error": f"{type(e).__name__}({e})"
+        }
+
+async def update_model(datafile: str):
+    df = pd.read_excel(datafile)
+    tasks = [asyncio.create_task(create_from_file(SDS.from_qcfile, path, name))
+             for path, name in df.itertuples(index=False)]
     res = await tqdm_asyncio.gather(*tasks)
     updating, errors = [], []
     for r, e in res:

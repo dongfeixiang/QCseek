@@ -19,27 +19,21 @@ class PPTX():
     async def __aexit__(self, exc_type, exc_value, exc_tb):
         self._zipfile.close()
 
-    async def open(self, file):
+    async def read(self, file):
         if self._zipfile is None:
             raise ValueError
-        fp = await asyncio.to_thread(self._zipfile.open, file)
-        return fp
-
-    async def read(self, file):
-        fp = await self.open(file)
-        with fp:
-            return fp.read()
+        filebyte = await asyncio.to_thread(self._zipfile.read, file)
+        return filebyte
 
     async def slides(self):
         if self._zipfile is None:
             raise ValueError
         for file in self._zipfile.namelist():
             if file.startswith("ppt/slides/slide"):
-                fp = await self.open(file)
-                rel = await self.open(f"ppt/slides/_rels/{file.split('/')[-1]}.rels")
-                with fp, rel:
-                    slide = await Slide().fromIO(fp, rel)
-                    yield slide
+                filebyte = await self.read(file)
+                relbyte = await self.read(f"ppt/slides/_rels/{file.split('/')[-1]}.rels")
+                slide = await Slide().fromByte(filebyte, relbyte)
+                yield slide
 
     async def get_tables(self) -> list[DataFrame]:
         tables = []
@@ -57,9 +51,9 @@ class Slide():
         self._bs = None
         self._rel = None
 
-    async def fromIO(self, fp, rel):
+    async def fromByte(self, file, rel):
         tasks = [asyncio.to_thread(BeautifulSoup, i, features="xml")
-                 for i in (fp, rel)]
+                 for i in (file, rel)]
         self._bs, self._rel = await asyncio.gather(*tasks)
         return self
 
@@ -71,6 +65,8 @@ class Slide():
             if not rows or len(rows) < 2:
                 continue
             heads = [col.text for col in rows[0].find_all("a:tc")]
+            if len(heads) > 10:
+                continue
             data = [[col.text for col in row.find_all(
                 "a:tc")] for row in rows[1:]]
             res.append(DataFrame(data, columns=heads))
