@@ -6,7 +6,7 @@ from peewee import (
 )
 
 from .pptx import PPTX
-
+import time
 
 db = SqliteDatabase("sqlite.db", pragmas={
     'foreign_keys': 1,
@@ -77,16 +77,22 @@ class SDS(BaseModel):
         async with PPTX(src.shortpathname) as ppt:
             async for slide in ppt.slides():
                 tables = await slide.get_tables()
+                tables = [t for t in tables if len(t.columns) <= 10]
                 if not tables:
                     continue
-                elif len(tables) > 1:
-                    raise ValueError("MultiTables")
+                # elif len(tables) > 1:
+                #     raise ValueError("MultiTables")
                 images = await slide.get_image_names()
                 if not images:
                     raise ValueError("NoImage")
-                if len(images) > 1:
-                    raise ValueError("MultiImages")
-                sds_list = await cls.from_dataframe(tables[0])
+                # if len(images) > 1:
+                #     raise ValueError("MultiImages")
+                sds_list = []
+                for t in tables:
+                    try:
+                        sds_list += await cls.from_dataframe(t)
+                    except IndexError:
+                        pass
                 for sds in sds_list:
                     sds.source = src
                     sds.pic = images[0]
@@ -106,7 +112,7 @@ class SEC(BaseModel):
 
     @classmethod
     async def from_dataframe(cls, df: DataFrame):
-        pid_i, rt_i, hmw_i, monomer_i, lmw_i = None, None, None, None, None
+        pid_i, rt_i, hmw_i, monomer_i, lmw_i, pic_i = None, None, None, None, None, None
         for index in df.columns:
             if index in ["蛋白编号", "CoA编号", "P编号"]:
                 pid_i = index
@@ -118,6 +124,8 @@ class SEC(BaseModel):
                 monomer_i = index
             elif index in ["低分子量物质(%)"]:
                 lmw_i = index
+            elif index in ["PDF对应页码"]:
+                pic_i = index
         if pid_i is None:
             raise IndexError("NoPidColumn")
         if rt_i is None:
@@ -129,7 +137,6 @@ class SEC(BaseModel):
         if lmw_i is None:
             raise IndexError("NoLMWColumn")
         res = []
-        # pic_num未处理
         for i in df.index:
             sec = cls(
                 pid=df[pid_i][i],
@@ -138,6 +145,10 @@ class SEC(BaseModel):
                 monomer=df[monomer_i][i],
                 lmw=df[lmw_i][i]
             )
+            pic_num = df.iloc[i, 0] if pic_i is None else df[pic_i][i]
+            pic_num = int(pic_num) if pic_num.isdigit() else None
+            if pic_num is not None:
+                sec.pic_num = pic_num
             res.append(sec)
         return res
 
@@ -146,9 +157,14 @@ class SEC(BaseModel):
         res = []
         async with PPTX(src.shortpathname) as ppt:
             tables = await ppt.get_tables()
-            # 未处理pic_num
             for t in tables:
-                res += await cls.from_dataframe(t)
+                try:
+                    sec_list = await cls.from_dataframe(t)
+                    for sec in sec_list:
+                        sec.source = src
+                        res.append(sec)
+                except IndexError:
+                    pass
         return res
 
     @classmethod
@@ -183,7 +199,7 @@ class LAL(BaseModel):
         if pid_i is None:
             raise IndexError("NoPidColumn")
         if lal_i is None:
-            # continue
+            # return []
             raise IndexError("NoLALColumn")
         res = []
         for i in df.index:
@@ -198,9 +214,11 @@ class LAL(BaseModel):
         res = []
         async with PPTX(src.shortpathname) as ppt:
             tables = await ppt.get_tables()
-            # 未处理source
             for t in tables:
-                res += await cls.from_dataframe(t)
+                lal_list = await cls.from_dataframe(t)
+                for lal in lal_list:
+                    lal.source = src
+                    res.append(lal)
         return res
 
 

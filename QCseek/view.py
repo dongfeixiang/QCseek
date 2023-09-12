@@ -1,4 +1,5 @@
 import os
+import time
 import shutil
 import asyncio
 from pathlib import Path
@@ -84,16 +85,12 @@ async def create_ssl(path: str, name: str, model: BaseModel):
         qcfile = None
         qcfile = await create_qcfile(path, name)
         if qcfile is None:
-            return [], None
+            return [], None, None
         else:
             updating = await model.from_qcfile(qcfile)
-            return updating, None
+            return updating, None, None
     except Exception as e:
-        # 删除发生错误的实例
-        if qcfile is not None:
-            with db.atomic():
-                qcfile.delete_instance()
-        return [], {
+        return [], qcfile, {
             "path": path,
             "name": name,
             "error": f"{type(e).__name__}({e})"
@@ -116,16 +113,12 @@ async def attach_pdf(path: str, name: str):
         qcfile = None
         qcfile = await create_qcfile(path, name)
         if qcfile is None:
-            return [], None
+            return [], None, None
         else:
             updating = await SEC.add_attach(qcfile)
-            return updating, None
+            return updating, None, None
     except Exception as e:
-        # 删除发生错误的实例
-        if qcfile is not None:
-            with db.atomic():
-                qcfile.delete_instance()
-        return [], {
+        return [], qcfile, {
             "path": path,
             "name": name,
             "error": f"{type(e).__name__}({e})"
@@ -217,32 +210,16 @@ def extract_sds_lane(img, lane):
     return temp
 
 
-def extract_sec(sec: SEC):
+async def extract_sec(sec: SEC):
     '''提取SEC图片'''
-    # 获取图号
-    pathname = sec.source.pathname
-    pathname = GetShortPathName(pathname) if len(pathname) > 255 else pathname
-    ppt = ZipFile(pathname)
-    slides = [i for i in ppt.namelist() if i.startswith("ppt/slides/slide")]
-    for s in slides:
-        with ppt.open(s) as slide:
-            bs = BeautifulSoup(slide, features="xml")
-            # 获取图号
-            index = 0
-            for tr in bs.find_all("a:tr"):
-                if "PDF对应页码" in tr.text:
-                    index = 3
-                if sec.pid in tr.text:
-                    pic = tr.find_all("tc")[index].text
     if sec.attach:
         # 提取PDF
-        pdfpath = sec.attach.pathname
-        pdfpath = GetShortPathName(pdfpath) if len(pdfpath) > 255 else pdfpath
         try:
-            pdf = fitz.open(pdfpath)
-            page = pdf[int(pic)-1]
+            pdf = fitz.open(sec.attach.shortpathname)
+            page = pdf[sec.pic_num-1]
             imgs = page.get_images()
             pix = fitz.Pixmap(pdf, imgs[1][0])
+            # 转换Pixmap为ndarray
             if not os.path.exists(sec.pid):
                 os.mkdir(sec.pid)
             img = f"{sec.pid}/sec.png"
@@ -258,21 +235,9 @@ def extract_sec(sec: SEC):
             print(e)
     else:
         # 提取PPT
-        for s in slides:
-            with ppt.open(s) as slide:
-                bs = BeautifulSoup(slide, features="xml")
-                title = bs.find("p:ph", type="title")
-                if title and title.parent.parent.parent.text == pic:
-                    # 提取图片
-                    rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-                    with ppt.open(rel) as slide_rel:
-                        rel_bs = BeautifulSoup(slide_rel, features="xml")
-                        relationships = rel_bs.find_all("Relationship")
-                        for re in relationships:
-                            if "media" in re["Target"]:
-                                img = re["Target"].replace("..", "ppt")
-                        ppt.extract(img, f"{sec.pid}/SEC")
-                        img = f"{sec.pid}/SEC/{img}"
+        async with PPTX(sec.source.shortpathname) as ppt:
+            ppt.get_image(1)
+        
     return img
 
 

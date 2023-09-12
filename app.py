@@ -8,7 +8,7 @@ from base.draggable import DraggableWindow
 class main_window(DraggableWindow):
     def __init__(self):
         super().__init__()
-        loadUi("main.ui", self)
+        loadUi("base/main.ui", self)
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 

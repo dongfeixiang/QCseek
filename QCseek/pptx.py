@@ -1,12 +1,12 @@
 import asyncio
 from zipfile import ZipFile
+import xml.etree.ElementTree as ET
 from typing import overload
 
 import cv2
 import numpy as np
 from pandas import DataFrame
 from bs4 import BeautifulSoup
-
 
 class PPTX():
     '''
@@ -35,8 +35,8 @@ class PPTX():
             raise ValueError
         for file in self._zipfile.namelist():
             if file.startswith("ppt/slides/slide"):
-                filebyte = await self.read(file)
-                relbyte = await self.read(f"ppt/slides/_rels/{file.split('/')[-1]}.rels")
+                rel = f"ppt/slides/_rels/{file.split('/')[-1]}.rels"
+                filebyte, relbyte = await asyncio.gather(self.read(file), self.read(rel))
                 slide = await Slide().fromByte(filebyte, relbyte)
                 yield slide
 
@@ -53,6 +53,19 @@ class PPTX():
 
     @overload
     async def get_image(self, index: int):
+        bs = BeautifulSoup(slide, features="xml")
+        title = bs.find("p:ph", type="title")
+        if title and title.parent.parent.parent.text==pic:
+            # 提取图片
+            rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
+            with ppt.open(rel) as slide_rel:
+                rel_bs = BeautifulSoup(slide_rel, features="xml")
+                relationships = rel_bs.find_all("Relationship")
+                for re in relationships:
+                    if "media" in re["Target"]:
+                        img = re["Target"].replace("..", "ppt")
+                ppt.extract(img, f"{sec.pid}/SEC")
+                img = f"{sec.pid}/SEC/{img}"
         return
 
 
@@ -79,14 +92,13 @@ class Slide():
             if not rows or len(rows) < 2:
                 continue
             heads = [col.text for col in rows[0].find_all("a:tc")]
-            if len(heads) > 10:
-                continue
             data = [[col.text for col in row.find_all(
                 "a:tc")] for row in rows[1:]]
             res.append(DataFrame(data, columns=heads))
         return res
 
     async def get_image_names(self):
+        # 这样获取的图片可能存在显示与原图片发生变换
         relations = self._rel.find_all("Relationship")
         image_list = [
             r["Target"].replace("..", "ppt")
@@ -94,3 +106,13 @@ class Slide():
             if "media" in r["Target"]
         ]
         return image_list
+    
+class XmlSlide():
+    def __init__(self):
+        self._bs = None
+        self._rel = None
+    
+    def from_byte(self, file, rel):
+        
+        self._bs = ET.parse()
+        self._rel = ET.parse()
