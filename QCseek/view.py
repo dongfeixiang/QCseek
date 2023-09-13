@@ -1,4 +1,5 @@
 import os
+import time
 import shutil
 import asyncio
 from pathlib import Path
@@ -21,6 +22,22 @@ SDS_FOLDER = BASE_DIR / "SDS-PAGE"
 SEC_FOLDER = BASE_DIR / "SEC"
 LAL_FOLDER = BASE_DIR / "LAL"
 WHITE = []
+
+
+def scan(dir):
+    '''扫描文件夹, 返回PPTX, PDF列表'''
+    res = []
+    with os.scandir(dir) as scanner:
+        for i in scanner:
+            if i.is_dir():
+                res += scan(i)
+            # 排除白名单文件和Windows临时文件
+            elif (i.path not in WHITE) and (not i.name.startswith("~$")):
+                name = i.name.lower()
+                if name.endswith("pptx") or name.endswith("pdf"):
+                    folder = i.path.replace(i.name, "")[:-1]
+                    res.append((folder, i.name))
+    return res
 
 
 async def create_qcfile(path: str, name: str):
@@ -51,20 +68,14 @@ async def create_qcfile(path: str, name: str):
         return None
 
 
-def scan(dir):
-    '''扫描文件夹, 返回PPTX, PDF列表'''
-    res = []
-    with os.scandir(dir) as scanner:
-        for i in scanner:
-            if i.is_dir():
-                res += scan(i)
-            # 排除白名单文件和Windows临时文件
-            elif (i.path not in WHITE) and (not i.name.startswith("~$")):
-                name = i.name.lower()
-                if name.endswith("pptx") or name.endswith("pdf"):
-                    folder = i.path.replace(i.name, "")[:-1]
-                    res.append((folder, i.name))
-    return res
+class CreateError(Exception):
+    '''模型创建异常'''
+
+    def __init__(self, qcfile: QCFile | None, path: str, name: str, msg: str):
+        super().__init__(msg)
+        self.qcfile = qcfile
+        self.path = path
+        self.name = name
 
 
 async def create_ssl(path: str, name: str, model: BaseModel) -> list[BaseModel]:
@@ -79,13 +90,16 @@ async def create_ssl(path: str, name: str, model: BaseModel) -> list[BaseModel]:
     Returns:
         - list[BaseModel]: 待保存模型实例列表
     '''
-    qcfile = None
-    qcfile = await create_qcfile(path, name)
-    if qcfile is None:
-        return []
-    else:
-        updating = await model.from_qcfile(qcfile)
-        return updating
+    try:
+        qcfile = None
+        qcfile = await create_qcfile(path, name)
+        if qcfile is None:
+            return []
+        else:
+            updating = await model.from_qcfile(qcfile)
+            return updating
+    except Exception as e:
+        raise CreateError(qcfile, path, name, str(e))
 
 
 async def attach_pdf(path: str, name: str):
@@ -104,20 +118,82 @@ async def attach_pdf(path: str, name: str):
         qcfile = None
         qcfile = await create_qcfile(path, name)
         if qcfile is None:
-            return [], None
+            return []
         else:
             updating = await SEC.add_attach(qcfile)
-            return updating, None
+            return updating
     except Exception as e:
-        # 删除发生错误的实例
-        if qcfile is not None:
-            with db.atomic():
-                qcfile.delete_instance()
-        return [], {
-            "path": path,
-            "name": name,
-            "error": f"{type(e).__name__}({e})"
-        }
+        raise CreateError(qcfile, path, name, str(e))
+
+
+async def batch_create_ssl(file_list, model: BaseModel):
+    '''从文件列表批量创建SDS/SEC/LAL'''
+    tasks = [create_ssl(path, name, model)
+             for path, name in file_list
+             if name.lower().endswith("pptx")]
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    updating, failed, errors = [], [], []
+    for r in res:
+        if isinstance(r, CreateError):
+            errors.append({
+                "path": r.path,
+                "name": r.name,
+                "error": str(r)
+            })
+            if r.qcfile is not None:
+                failed.append(r.qcfile)
+        else:
+            updating += r
+    # 更新数据库
+    with db.atomic():
+        model.bulk_create(updating, batch_size=100)
+        for i in failed:
+            i.delete_instance()
+    return errors
+
+
+async def batch_attach_pdf(file_list):
+    '''从文件列表批量添加SEC模型attach'''
+    tasks = [create_ssl(path, name)
+             for path, name in file_list
+             if name.lower().endswith("pdf")]
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    updating, failed, errors = [], [], []
+    for r in res:
+        if isinstance(r, CreateError):
+            errors.append({
+                "path": r.path,
+                "name": r.name,
+                "error": str(r)
+            })
+            if r.qcfile is not None:
+                failed.append(r.qcfile)
+        else:
+            updating += r
+    # 更新数据库
+    with db.atomic():
+        SEC.bulk_update(updating, fields=["attach"], batch_size=100)
+        for i in failed:
+            i.delete_instance()
+    return errors
+
+
+async def scan_update():
+    sds_files = scan(SDS_FOLDER)
+    sec_files = scan(SEC_FOLDER)
+    lal_files = scan(LAL_FOLDER)
+    errors = await asyncio.gather(
+        batch_create_ssl(sds_files, SDS),
+        batch_create_ssl(sec_files, SEC),
+        batch_create_ssl(lal_files, LAL)
+    )
+    errors.append(await batch_attach_pdf(sec_files))
+    errors = sum(errors, [])
+    # 输出错误文件
+    pd.DataFrame(
+        errors,
+        columns=["path", "name", "error"]
+    ).to_excel("out/error.xlsx", index=False)
 
 
 def clean(Model):
@@ -205,32 +281,16 @@ def extract_sds_lane(img, lane):
     return temp
 
 
-def extract_sec(sec: SEC):
+async def extract_sec(sec: SEC):
     '''提取SEC图片'''
-    # 获取图号
-    pathname = sec.source.pathname
-    pathname = GetShortPathName(pathname) if len(pathname) > 255 else pathname
-    ppt = ZipFile(pathname)
-    slides = [i for i in ppt.namelist() if i.startswith("ppt/slides/slide")]
-    for s in slides:
-        with ppt.open(s) as slide:
-            bs = BeautifulSoup(slide, features="xml")
-            # 获取图号
-            index = 0
-            for tr in bs.find_all("a:tr"):
-                if "PDF对应页码" in tr.text:
-                    index = 3
-                if sec.pid in tr.text:
-                    pic = tr.find_all("tc")[index].text
     if sec.attach:
         # 提取PDF
-        pdfpath = sec.attach.pathname
-        pdfpath = GetShortPathName(pdfpath) if len(pdfpath) > 255 else pdfpath
         try:
-            pdf = fitz.open(pdfpath)
-            page = pdf[int(pic)-1]
+            pdf = fitz.open(sec.attach.shortpathname)
+            page = pdf[sec.pic_num-1]
             imgs = page.get_images()
             pix = fitz.Pixmap(pdf, imgs[1][0])
+            # 转换Pixmap为ndarray
             if not os.path.exists(sec.pid):
                 os.mkdir(sec.pid)
             img = f"{sec.pid}/sec.png"
@@ -246,21 +306,9 @@ def extract_sec(sec: SEC):
             print(e)
     else:
         # 提取PPT
-        for s in slides:
-            with ppt.open(s) as slide:
-                bs = BeautifulSoup(slide, features="xml")
-                title = bs.find("p:ph", type="title")
-                if title and title.parent.parent.parent.text == pic:
-                    # 提取图片
-                    rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-                    with ppt.open(rel) as slide_rel:
-                        rel_bs = BeautifulSoup(slide_rel, features="xml")
-                        relationships = rel_bs.find_all("Relationship")
-                        for re in relationships:
-                            if "media" in re["Target"]:
-                                img = re["Target"].replace("..", "ppt")
-                        ppt.extract(img, f"{sec.pid}/SEC")
-                        img = f"{sec.pid}/SEC/{img}"
+        async with PPTX(sec.source.shortpathname) as ppt:
+            ppt.get_image(1)
+
     return img
 
 

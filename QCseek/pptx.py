@@ -1,5 +1,6 @@
 import asyncio
 from zipfile import ZipFile
+import xml.etree.ElementTree as ET
 from typing import overload
 import xml.etree.ElementTree as ET
 
@@ -29,77 +30,92 @@ class PPTX:
 
     async def open(self, file: str):
         '''打开文件二进制IO流'''
+    async def open(self, file):
         if self._zipfile is None:
             raise ValueError
         fp = await asyncio.to_thread(self._zipfile.open, file)
         return fp
 
-    async def read(self, file):
-        '''读取二进制bytes'''
-        fp = await self.open(file)
-        with fp:
-            return fp.read()
+    async def get_slide(self, file: str):
+        if not file.startswith("ppt/slides/slide"):
+            raise ValueError(f"{file} is not a slide")
+        rel = f"ppt/slides/_rels/{file.split('/')[-1]}.rels"
+        fp, frel = await asyncio.gather(self.open(file), self.open(rel))
+        with fp, frel:
+            return await Slide().from_bufferedIO(fp, frel)
 
     async def slides(self):
         if self._zipfile is None:
             raise ValueError
-        for file in self._zipfile.namelist():
-            if file.startswith("ppt/slides/slide"):
-                # read会迭代文件指针，可能影响速度
-                # filebyte = await self.read(file)
-                # relbyte = await self.read(f"ppt/slides/_rels/{file.split('/')[-1]}.rels")
-                # slide = await Slide().fromByte(filebyte, relbyte)
-                rel = f"ppt/slides/_rels/{file.split('/')[-1]}.rels"
-                fp, frel = await asyncio.gather(self.open(file), self.open(rel))
-                slide = await Slide().from_bufferedIO(fp, frel)
-                yield slide
+        tasks = [
+            self.get_slide(file)
+            for file in self._zipfile.namelist()
+            if file.startswith("ppt/slides/slide")
+        ]
+        return await asyncio.gather(*tasks)
 
     async def get_tables(self) -> list[DataFrame]:
-        tables = []
-        async for slide in self.slides():
-            tables += await slide.get_tables()
-        return tables
+        task = [slide.get_tables() for slide in await self.slides()]
+        res = await asyncio.gather(*task)
+        return sum(res, [])
 
     @overload
     async def get_image(self, xref: str):
-        fb = await self.read(xref)
-        return cv2.imdecode(np.fromstring(fb, dtype=np.uint8), 1)
+        '''读取二进制图片数据'''
+        fp = await self.open(xref)
+        return cv2.imdecode(np.fromstring(fp, dtype=np.uint8), 1)
 
     @overload
     async def get_image(self, index: int):
+        bs = BeautifulSoup(slide, features="xml")
+        title = bs.find("p:ph", type="title")
+        if title and title.parent.parent.parent.text == pic:
+            # 提取图片
+            rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
+            with ppt.open(rel) as slide_rel:
+                rel_bs = BeautifulSoup(slide_rel, features="xml")
+                relationships = rel_bs.find_all("Relationship")
+                for re in relationships:
+                    if "media" in re["Target"]:
+                        img = re["Target"].replace("..", "ppt")
+                ppt.extract(img, f"{sec.pid}/SEC")
+                img = f"{sec.pid}/SEC/{img}"
         return
 
 
 class Slide:
+    '''
+    异步风格Slide操作类, 支持`async`/`await`
+    '''
+
     def __init__(self):
         self._bs = None
         self._rel = None
-        self.namespace = {
-            "a": "http://schemas.openxmlformats.org/drawingml/2006/main"
-        }
+        self.ns = {"a": ""}
 
-    async def from_bufferedIO(self, fp1, fp2):
-        self._bs = ET.ElementTree(file=fp1)
-        self._rel = ET.ElementTree(file=fp2)
+    async def from_bufferedIO(self, file, rel):
+        t_file = asyncio.to_thread(ET.parse, file)
+        t_rel = asyncio.to_thread(ET.parse, rel)
+        self._bs, self._rel = await asyncio.gather(t_file, t_rel)
         return self
 
-    async def get_tables(self):
+    async def get_tables(self) -> list[DataFrame]:
+        '''Get standard tables in slide'''
         res = []
-        for table in self._bs.findall(".//a:graphicData", self.namespace):
-            rows = table.findall(".//a:tr", self.namespace)
+        for table_tag in self._bs.findall(".//a:graphicData", self.ns):
+            rows = table_tag.findall(".//a:tr", self.ns)
             if not rows or len(rows) < 2:
                 continue
             heads = ["".join(col.itertext())
-                     for col in rows[0].findall(".//a:tc", self.namespace)]
-            if len(heads) > 10:
-                continue
+                     for col in rows[0].findall(".//a:tc", self.ns)]
             data = [["".join(col.itertext()) for col in row.findall(
-                ".//a:tc", self.namespace)] for row in rows[1:]]
+                ".//a:tc", self.ns)] for row in rows[1:]]
             res.append(DataFrame(data, columns=heads))
         return res
 
     async def get_image_names(self):
-        relations = self._rel.findall("Relationship")
+        # 这样获取的图片可能存在显示与原图片发生变换
+        relations = self._rel.findall(".//Relationship")
         image_list = [
             r.get("Target").replace("..", "ppt")
             for r in relations

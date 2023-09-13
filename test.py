@@ -1,10 +1,12 @@
 import time
+import random
 import logging
 import asyncio
 import random
 
 from QCseek.model import *
-from QCseek.handle_old import update_ssl
+from QCseek.view import backup
+from QCseek.handle_old import update_ssl, update_pdf
 
 
 async def randwait(wait):
