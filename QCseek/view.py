@@ -1,5 +1,4 @@
 import os
-import time
 import shutil
 import asyncio
 from pathlib import Path
@@ -40,7 +39,7 @@ def scan(dir):
     return res
 
 
-async def create_qcfile(path: str, name: str):
+async def create_qcfile(path: str, name: str) -> QCFile | None:
     '''
     从文件创建`QCFile`实例
 
@@ -120,8 +119,7 @@ async def attach_pdf(path: str, name: str):
         if qcfile is None:
             return []
         else:
-            updating = await SEC.add_attach(qcfile)
-            return updating
+            return SEC.add_attach(qcfile)
     except Exception as e:
         raise CreateError(qcfile, path, name, str(e))
 
@@ -154,7 +152,7 @@ async def batch_create_ssl(file_list, model: BaseModel):
 
 async def batch_attach_pdf(file_list):
     '''从文件列表批量添加SEC模型attach'''
-    tasks = [create_ssl(path, name)
+    tasks = [attach_pdf(path, name)
              for path, name in file_list
              if name.lower().endswith("pdf")]
     res = await asyncio.gather(*tasks, return_exceptions=True)

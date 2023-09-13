@@ -2,10 +2,10 @@ import numpy as np
 import cv2
 from cv2_rolling_ball import subtract_background_rolling_ball
 import matplotlib.pyplot as plt
-from scipy.signal import find_peaks, peak_prominences,peak_widths
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 
-def pre_cut(img:str, cut_bg:bool=False):
+def pre_cut(img: str, cut_bg: bool = False):
     '''图片预处理，裁剪，灰度化，背景减除'''
     img_gray = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
     # 根据阈值二值化
@@ -19,16 +19,17 @@ def pre_cut(img:str, cut_bg:bool=False):
             top = i
             break
     # 裁剪胶孔
-    img_gray = img_gray[top+10:,:]
+    img_gray = img_gray[top+10:, :]
     # 滑动抛物面算法减除背景
     if cut_bg:
-        img_gray, _ = subtract_background_rolling_ball(img_gray, 30, use_paraboloid=True)
+        img_gray, _ = subtract_background_rolling_ball(
+            img_gray, 30, use_paraboloid=True)
     # 灰度反转
     img_gray = np.ones(img_gray.shape, dtype=np.uint8)*255-np.array(img_gray)
-    return cv2.imread(img)[top+10:,:], img_gray
+    return cv2.imread(img)[top+10:, :], img_gray
 
 
-def gel_crop(img:np.ndarray) ->list:
+def gel_crop(img: np.ndarray) -> list:
     '''
     根据泳道裁剪图片
     img: 图片像素矩阵
@@ -51,10 +52,10 @@ def gel_crop(img:np.ndarray) ->list:
     lines = [0] + edges + [len(img[0])]
     return lines
 
-    return [img[:,lines[i]:lines[i+1]] for i in range(len(lines)-1)]
+    return [img[:, lines[i]:lines[i+1]] for i in range(len(lines)-1)]
 
 
-def gray_check(img:np.ndarray, edges:list):
+def gray_check(img: np.ndarray, edges: list):
     '''横向灰度极值校正'''
     # 统计列平均灰度曲线
     img_inv = np.ones(img.shape, dtype=np.uint8)*255-np.array(img)
@@ -62,14 +63,15 @@ def gray_check(img:np.ndarray, edges:list):
     col_mean = col.mean(axis=0)
 
     # 查找峰顶，即分割界限
-    peaks,_ = find_peaks(col_mean, height=245, distance=len(img[0])/30, prominence=2)
+    peaks, _ = find_peaks(col_mean, height=245,
+                          distance=len(img[0])/30, prominence=2)
 
     # plt.plot(np.arange(len(col_mean)), col_mean)
     # plt.plot(peaks, col_mean[peaks], "x")
     # plt.show()
 
     # 查找最近边界并校正
-    for i,e in enumerate(edges):
+    for i, e in enumerate(edges):
         dis = [abs(e-p) for p in peaks]
         if min(dis) < len(img[0])/30:
             edges[i] = peaks[dis.index(min(dis))]
@@ -77,10 +79,10 @@ def gray_check(img:np.ndarray, edges:list):
     return edges
 
 
-def blank_check(img:np.ndarray, edges:list):
+def blank_check(img: np.ndarray, edges: list):
     '''空白泳道校正'''
     # 阈值处理&灰度统计
-    _,img_n = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
+    _, img_n = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
     col = np.array(img_n)
     col_mean = col.mean(axis=0)
 
@@ -103,7 +105,7 @@ def blank_check(img:np.ndarray, edges:list):
                 blanks.append(zeros[i])
 
     # 查找最近边界并校正
-    for i,e in enumerate(edges):
+    for i, e in enumerate(edges):
         dis = [abs(e-b) for b in blanks]
         if min(dis) < len(img[0])/30:
             edges[i] = blanks[dis.index(min(dis))]

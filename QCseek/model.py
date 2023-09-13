@@ -6,7 +6,6 @@ from peewee import (
 )
 
 from .pptx import PPTX
-import time
 
 db = SqliteDatabase("sqlite.db", pragmas={
     'foreign_keys': 1,
@@ -57,7 +56,7 @@ class SDS(BaseModel):
         return f"SDS({self.pid},{self.purity},{self.pic},{self.non_reduced_lane},{self.reduced_lane})"
 
     @classmethod
-    async def from_dataframe(cls, df: DataFrame):
+    def from_dataframe(cls, df: DataFrame):
         pid_i, purity_i = None, None
         for index in df.columns:
             if index in ["蛋白编号", "CoA#"]:
@@ -82,48 +81,30 @@ class SDS(BaseModel):
     async def from_qcfile(cls, src: QCFile) -> list:
         res = []
         async with PPTX(src.shortpathname) as ppt:
-            for slide in await ppt.slides():
+            slides = await ppt.slides()
+            for slide in slides:
                 tables = await slide.get_tables()
                 tables = [t for t in tables if len(t.columns) <= 10]
                 if not tables:
                     continue
-                # elif len(tables) > 1:
-                #     raise ValueError("MultiTables")
                 images = await slide.get_image_names()
                 if not images:
                     raise ValueError("NoImage")
+                # 同一张幻灯片中会出现幽灵图片，不能抛出多图异常，暂取第一张图
                 # if len(images) > 1:
                 #     raise ValueError("MultiImages")
-                sds_list = []
-                for t in tables:
-                    try:
-                        sds_list += await cls.from_dataframe(t)
-                    except IndexError:
-                        pass
+                sds_list = [cls.from_dataframe(t) for t in tables]
+                sds_list = sum(sds_list, [])
                 for sds in sds_list:
-                    sds.source = src
-                    sds.pic = images[0]
-                    res.append(sds)
-        try:
-            async with PPTX(src.shortpathname) as ppt:
-                async for slide in ppt.slides():
-                    tables = await slide.get_tables()
-                    if not tables:
-                        continue
-                    elif len(tables) > 1:
-                        raise ValueError("MultiTables")
-                    images = await slide.get_image_names()
-                    if not images:
-                        raise ValueError("NoImage")
-                    if len(images) > 1:
-                        raise ValueError("MultiImages")
-                    sds_list = await cls.from_dataframe(tables[0])
-                    for sds in sds_list:
-                        sds.source = src
-                        sds.pic = images[0]
+                    sds.source, sds.pic = src, images[0]
+                    # 剔除数据库重复数据, 可能有性能问题
+                    if not SDS.get_or_none(
+                        pid=sds.pid,
+                        purity=sds.purity,
+                        source=sds.source,
+                        pic=sds.pic
+                    ):
                         res.append(sds)
-        except Exception as e:
-            raise QCFile.ParseError(src, str(e))
         return res
 
 
@@ -138,7 +119,7 @@ class SEC(BaseModel):
     pic_num = IntegerField(null=True)
 
     @classmethod
-    async def from_dataframe(cls, df: DataFrame):
+    def from_dataframe(cls, df: DataFrame):
         pid_i, rt_i, hmw_i, monomer_i, lmw_i, pic_i = None, None, None, None, None, None
         for index in df.columns:
             if index in ["蛋白编号", "CoA编号", "P编号"]:
@@ -184,18 +165,23 @@ class SEC(BaseModel):
         res = []
         async with PPTX(src.shortpathname) as ppt:
             tables = await ppt.get_tables()
-            for t in tables:
-                try:
-                    sec_list = await cls.from_dataframe(t)
-                    for sec in sec_list:
-                        sec.source = src
-                        res.append(sec)
-                except IndexError:
-                    pass
+            sec_list = [cls.from_dataframe(t) for t in tables]
+            sec_list = sum(sec_list, [])
+            for sec in sec_list:
+                sec.source = src
+                if not SEC.get_or_none(
+                    pid=sec.pid,
+                    retention_time=sec.retention_time,
+                    hmw=sec.hmw,
+                    monomer=sec.monomer,
+                    lmw=sec.lmw,
+                    source=sec.source
+                ):
+                    res.append(sec)
         return res
 
     @classmethod
-    async def add_attach(cls, src: QCFile):
+    def add_attach(cls, src: QCFile):
         pdf = src.name[:-4]
         query = cls.select().join(
             QCFile,
@@ -216,7 +202,7 @@ class LAL(BaseModel):
     source = ForeignKeyField(QCFile, backref="lal_set", on_delete="CASCADE")
 
     @classmethod
-    async def from_dataframe(cls, df: DataFrame):
+    def from_dataframe(cls, df: DataFrame):
         pid_i, lal_i = None, None
         for index in df.columns:
             if index in ["蛋白编号", "CoA#", "P编号"]:
@@ -241,10 +227,15 @@ class LAL(BaseModel):
         res = []
         async with PPTX(src.shortpathname) as ppt:
             tables = await ppt.get_tables()
-            for t in tables:
-                lal_list = await cls.from_dataframe(t)
-                for lal in lal_list:
-                    lal.source = src
+            lal_list = [cls.from_dataframe(t) for t in tables]
+            lal_list = sum(lal_list, [])
+            for lal in lal_list:
+                lal.source = src
+                if not LAL.get_or_none(
+                    pid=lal.pid,
+                    value=lal.value,
+                    source=lal.source
+                ):
                     res.append(lal)
         return res
 
