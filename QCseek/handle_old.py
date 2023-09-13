@@ -77,10 +77,10 @@ async def update_ssl(datafile: str, model: BaseModel):
     '''从EXCEL表批量创建SDS/SEC/LAL'''
     df = pd.read_excel(datafile)
     tasks = []
-    for path, name in df.itertuples(index=False):
+    for path, name in df.loc[:99, :].itertuples(index=False):
         if name.lower().endswith("pptx"):
             tasks.append(asyncio.create_task(create_ssl(path, name, model)))
-    res = await tqdm_asyncio.gather(*tasks)
+    res = await asyncio.gather(*tasks)
     updating, failed, errors = [], [], []
     for r, qcfile, e in res:
         updating += r

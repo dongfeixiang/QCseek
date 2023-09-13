@@ -8,7 +8,7 @@ import numpy as np
 from pandas import DataFrame
 from bs4 import BeautifulSoup
 
-class PPTX():
+class PPTX:
     '''
     异步风格PPT操作类, 支持`async`/`await`
     '''
@@ -24,32 +24,40 @@ class PPTX():
     async def __aexit__(self, exc_type, exc_value, exc_tb):
         self._zipfile.close()
 
-    async def read(self, file):
+    async def open(self, file):
         if self._zipfile is None:
             raise ValueError
-        filebyte = await asyncio.to_thread(self._zipfile.read, file)
-        return filebyte
+        fp = await asyncio.to_thread(self._zipfile.open, file)
+        return fp
+    
+    async def get_slide(self, file:str):
+        if not file.startswith("ppt/slides/slide"):
+            raise ValueError(f"{file} is not a slide")
+        rel = f"ppt/slides/_rels/{file.split('/')[-1]}.rels"
+        fp, frel = await asyncio.gather(self.open(file), self.open(rel))
+        with fp, frel:
+            return await Slide().from_bufferedIO(fp, frel)
 
     async def slides(self):
         if self._zipfile is None:
             raise ValueError
-        for file in self._zipfile.namelist():
-            if file.startswith("ppt/slides/slide"):
-                rel = f"ppt/slides/_rels/{file.split('/')[-1]}.rels"
-                filebyte, relbyte = await asyncio.gather(self.read(file), self.read(rel))
-                slide = await Slide().fromByte(filebyte, relbyte)
-                yield slide
+        tasks = [
+            self.get_slide(file)
+            for file in self._zipfile.namelist()
+            if file.startswith("ppt/slides/slide")
+        ]
+        return await asyncio.gather(*tasks)
 
     async def get_tables(self) -> list[DataFrame]:
-        tables = []
-        async for slide in self.slides():
-            tables += await slide.get_tables()
-        return tables
+        task = [slide.get_tables() for slide in await self.slides()]
+        res = await asyncio.gather(*task)
+        return sum(res, [])
 
     @overload
     async def get_image(self, xref: str):
-        fb = await self.read(xref)
-        return cv2.imdecode(np.fromstring(fb, dtype=np.uint8), 1)
+        '''读取二进制图片数据'''
+        fp = await self.open(xref)
+        return cv2.imdecode(np.fromstring(fp, dtype=np.uint8), 1)
 
     @overload
     async def get_image(self, index: int):
@@ -69,50 +77,40 @@ class PPTX():
         return
 
 
-class Slide():
+class Slide:
     '''
     异步风格Slide操作类, 支持`async`/`await`
     '''
-
     def __init__(self):
         self._bs = None
         self._rel = None
-
-    async def fromByte(self, file, rel):
-        tasks = [asyncio.to_thread(BeautifulSoup, i, features="xml")
-                 for i in (file, rel)]
-        self._bs, self._rel = await asyncio.gather(*tasks)
+        self.ns = {"a":""}
+    
+    async def from_bufferedIO(self, file, rel):
+        t_file = asyncio.to_thread(ET.parse, file)
+        t_rel = asyncio.to_thread(ET.parse, rel)
+        self._bs, self._rel = await asyncio.gather(t_file, t_rel)
         return self
-
+    
     async def get_tables(self) -> list[DataFrame]:
         '''Get standard tables in slide'''
         res = []
-        for table_tag in self._bs.find_all("a:graphicData"):
-            rows = table_tag.find_all("a:tr")
+        for table_tag in self._bs.findall(".//a:graphicData", self.ns):
+            rows = table_tag.findall(".//a:tr", self.ns)
             if not rows or len(rows) < 2:
                 continue
-            heads = [col.text for col in rows[0].find_all("a:tc")]
-            data = [[col.text for col in row.find_all(
-                "a:tc")] for row in rows[1:]]
+            heads = ["".join(col.itertext()) for col in rows[0].findall(".//a:tc", self.ns)]
+            data = [["".join(col.itertext()) for col in row.findall(
+                ".//a:tc", self.ns)] for row in rows[1:]]
             res.append(DataFrame(data, columns=heads))
         return res
-
+    
     async def get_image_names(self):
         # 这样获取的图片可能存在显示与原图片发生变换
-        relations = self._rel.find_all("Relationship")
+        relations = self._rel.findall(".//Relationship")
         image_list = [
-            r["Target"].replace("..", "ppt")
+            r.get("Target").replace("..", "ppt")
             for r in relations
-            if "media" in r["Target"]
+            if "media" in r.get("Target")
         ]
         return image_list
-    
-class XmlSlide():
-    def __init__(self):
-        self._bs = None
-        self._rel = None
-    
-    def from_byte(self, file, rel):
-        
-        self._bs = ET.parse()
-        self._rel = ET.parse()

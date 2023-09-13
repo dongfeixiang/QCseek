@@ -75,7 +75,7 @@ class SDS(BaseModel):
     async def from_qcfile(cls, src: QCFile):
         res = []
         async with PPTX(src.shortpathname) as ppt:
-            async for slide in ppt.slides():
+            for slide in await ppt.slides():
                 tables = await slide.get_tables()
                 tables = [t for t in tables if len(t.columns) <= 10]
                 if not tables:
