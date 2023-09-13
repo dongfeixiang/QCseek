@@ -67,7 +67,7 @@ def scan(dir):
     return res
 
 
-async def create_ssl(path: str, name: str, model: BaseModel):
+async def create_ssl(path: str, name: str, model: BaseModel) -> list[BaseModel]:
     '''
     从文件批量创建SDS/SEC/LAL实例
 
@@ -78,26 +78,14 @@ async def create_ssl(path: str, name: str, model: BaseModel):
 
     Returns:
         - list[BaseModel]: 待保存模型实例列表
-        - dict[] | None: 错误字典
     '''
-    try:
-        qcfile = None
-        qcfile = await create_qcfile(path, name)
-        if qcfile is None:
-            return [], None
-        else:
-            updating = await model.from_qcfile(qcfile)
-            return updating, None
-    except Exception as e:
-        # 删除发生错误的实例
-        if qcfile is not None:
-            with db.atomic():
-                qcfile.delete_instance()
-        return [], {
-            "path": path,
-            "name": name,
-            "error": f"{type(e).__name__}({e})"
-        }
+    qcfile = None
+    qcfile = await create_qcfile(path, name)
+    if qcfile is None:
+        return []
+    else:
+        updating = await model.from_qcfile(qcfile)
+        return updating
 
 
 async def attach_pdf(path: str, name: str):

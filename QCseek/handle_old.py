@@ -67,12 +67,18 @@ async def update_ssl(datafile: str, model: BaseModel):
     df = pd.read_excel(datafile)
     tasks = [asyncio.create_task(create_ssl(path, name, model))
              for path, name in df.itertuples(index=False)]
-    res = await tqdm_asyncio.gather(*tasks)
-    updating, errors = [], []
-    for r, e in res:
-        updating += r
-        if e is not None:
-            errors.append(e)
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    updating, failed, errors = [], [], []
+    for i in res:
+        if not isinstance(i, Exception):
+            updating += i
+        elif isinstance(i, QCFile.ParseError):
+            errors.append({
+                "path": i.qcfile.path,
+                "name": i.qcfile.name,
+                "error": str(i)
+            })
+            failed.append(i.qcfile)
     # 更新数据库
     with db.atomic():
         model.bulk_create(updating, batch_size=100)

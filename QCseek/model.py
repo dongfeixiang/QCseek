@@ -25,6 +25,13 @@ class QCFile(BaseModel):
     path = CharField(max_length=255)
     modified = DateTimeField()
 
+    class ParseError(Exception):
+        '''文件解析异常'''
+
+        def __init__(self, qcfile, msg: str):
+            super().__init__(msg)
+            self.qcfile = qcfile
+
     @property
     def pathname(self):
         return f"{self.path}/{self.name}"
@@ -72,25 +79,28 @@ class SDS(BaseModel):
         return res
 
     @classmethod
-    async def from_qcfile(cls, src: QCFile):
+    async def from_qcfile(cls, src: QCFile) -> list:
         res = []
-        async with PPTX(src.shortpathname) as ppt:
-            async for slide in ppt.slides():
-                tables = await slide.get_tables()
-                if not tables:
-                    continue
-                elif len(tables) > 1:
-                    raise ValueError("MultiTables")
-                images = await slide.get_image_names()
-                if not images:
-                    raise ValueError("NoImage")
-                if len(images) > 1:
-                    raise ValueError("MultiImages")
-                sds_list = await cls.from_dataframe(tables[0])
-                for sds in sds_list:
-                    sds.source = src
-                    sds.pic = images[0]
-                    res.append(sds)
+        try:
+            async with PPTX(src.shortpathname) as ppt:
+                async for slide in ppt.slides():
+                    tables = await slide.get_tables()
+                    if not tables:
+                        continue
+                    elif len(tables) > 1:
+                        raise ValueError("MultiTables")
+                    images = await slide.get_image_names()
+                    if not images:
+                        raise ValueError("NoImage")
+                    if len(images) > 1:
+                        raise ValueError("MultiImages")
+                    sds_list = await cls.from_dataframe(tables[0])
+                    for sds in sds_list:
+                        sds.source = src
+                        sds.pic = images[0]
+                        res.append(sds)
+        except Exception as e:
+            raise QCFile.ParseError(src, str(e))
         return res
 
 

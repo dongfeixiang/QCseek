@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>647</width>
-    <height>497</height>
+    <width>727</width>
+    <height>537</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -114,7 +114,7 @@ QPushButton:hover {
                <string/>
               </property>
               <property name="pixmap">
-               <pixmap resource="res.qrc">:/icon/template/logo.png</pixmap>
+               <pixmap resource="../image/res.qrc">:/icon/logo.png</pixmap>
               </property>
               <property name="scaledContents">
                <bool>true</bool>
@@ -194,8 +194,8 @@ QPushButton:hover {
                   <string/>
                  </property>
                  <property name="icon">
-                  <iconset resource="res.qrc">
-                   <normaloff>:/icon/C:/Users/22160/Downloads/Minimize-2.png</normaloff>:/icon/C:/Users/22160/Downloads/Minimize-2.png</iconset>
+                  <iconset resource="../image/res.qrc">
+                   <normaloff>:/icon/Minimize-2.png</normaloff>:/icon/Minimize-2.png</iconset>
                  </property>
                  <property name="iconSize">
                   <size>
@@ -217,8 +217,8 @@ QPushButton:hover {
                   <string/>
                  </property>
                  <property name="icon">
-                  <iconset resource="res.qrc">
-                   <normaloff>:/icon/C:/Users/22160/Downloads/Maximize-1.png</normaloff>:/icon/C:/Users/22160/Downloads/Maximize-1.png</iconset>
+                  <iconset resource="../image/res.qrc">
+                   <normaloff>:/icon/Maximize-1.png</normaloff>:/icon/Maximize-1.png</iconset>
                  </property>
                  <property name="iconSize">
                   <size>
@@ -243,8 +243,8 @@ QPushButton:hover {
                   <string/>
                  </property>
                  <property name="icon">
-                  <iconset resource="res.qrc">
-                   <normaloff>:/icon/C:/Users/22160/Downloads/关闭 (1).png</normaloff>:/icon/C:/Users/22160/Downloads/关闭 (1).png</iconset>
+                  <iconset resource="../image/res.qrc">
+                   <normaloff>:/icon/close.png</normaloff>:/icon/close.png</iconset>
                  </property>
                  <property name="iconSize">
                   <size>
@@ -782,7 +782,7 @@ border-radius: 1px;</string>
   </layout>
  </widget>
  <resources>
-  <include location="res.qrc"/>
+  <include location="../image/res.qrc"/>
  </resources>
  <connections>
   <connection>
