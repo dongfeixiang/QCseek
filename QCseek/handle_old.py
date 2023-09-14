@@ -6,7 +6,7 @@ import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
 from .model import *
-from .view import create_qcfile, create_ssl, attach_pdf
+from .view import CreateError, create_ssl, attach_pdf
 
 
 BASE_DIRS = Path(r"Z:\service\0.样品管理部\01 蛋白库相关\06 蛋白编号")
@@ -22,7 +22,8 @@ SSL_DIRS = [
     BASE_DIRS / "P80000-P89999",
     BASE_DIRS / "P90000-100000",
 ]
-WHITE = []
+WHITE = [
+]
 
 
 def scan(dir):
@@ -33,7 +34,7 @@ def scan(dir):
             if i.is_dir():
                 res += scan(i)
             # 排除白名单文件和Windows临时文件
-            elif (i.path not in WHITE) and (not i.name.startswith("~$")):
+            elif (i.name not in WHITE) and (not i.name.startswith("~$")):
                 name = i.name.lower()
                 # print(name)
                 if name.endswith("pptx") or name.endswith("pdf"):
@@ -64,13 +65,21 @@ async def update_ssl(datafile: str, model: BaseModel):
     '''从EXCEL表批量创建SDS/SEC/LAL'''
     df = pd.read_excel(datafile)
     tasks = [asyncio.create_task(create_ssl(path, name, model))
-             for path, name in df.itertuples(index=False)]
-    res = await tqdm_asyncio.gather(*tasks)
-    updating, errors = [], []
-    for r, e in res:
-        updating += r
-        if e is not None:
-            errors.append(e)
+             for path, name in df.itertuples(index=False)
+             if name.lower().endswith("pptx")]
+    res = await asyncio.gather(*tasks, return_exceptions=True)
+    updating, failed, errors = [], [], []
+    for r in res:
+        if isinstance(r, CreateError):
+            errors.append({
+                "path": r.path,
+                "name": r.name,
+                "error": str(r)
+            })
+            if r.qcfile is not None:
+                failed.append(r.qcfile)
+        else:
+            updating += r
     # 更新数据库
     with db.atomic():
         model.bulk_create(updating, batch_size=100)
@@ -92,19 +101,19 @@ async def update_pdf(datafile: str):
     for path, name in df.itertuples(index=False):
         if name.lower().endswith("pdf"):
             tasks.append(asyncio.create_task(attach_pdf(path, name)))
-    res = await tqdm_asyncio.gather(*tasks)
+    res = await asyncio.gather(*tasks, return_exceptions=True)
     updating, failed, errors = [], [], []
-    for r, qcfile, e in res:
-        updating += r
-        if qcfile is not None:
-            failed.append(qcfile)
-        if e is not None:
-            errors.append(e)
-    # 更新数据库
-    with db.atomic():
-        SEC.bulk_update(updating, fields=["attach"], batch_size=100)
-        for i in failed:
-            i.delete_instance()
+    for r in res:
+        if isinstance(r, CreateError):
+            errors.append({
+                "path": r.path,
+                "name": r.name,
+                "error": str(r)
+            })
+            if r.qcfile is not None:
+                failed.append(r.qcfile)
+        else:
+            updating += r
     # 输出错误文件
     out = datafile.split(".")
     out = "_pdferror.".join(out)

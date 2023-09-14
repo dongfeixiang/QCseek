@@ -1,12 +1,14 @@
-# import time
-# import random
-# import asyncio
+import time
+import asyncio
 
-# from QCseek.model import *
-# from QCseek.view import backup
-# from QCseek.handle_old import update_ssl, update_pdf
-from QCseek.sds_reader import pre_cut
+from QCseek.model import SDS, SEC, LAL
+from QCseek.view import backup, scan_update, clean
+from QCseek.handle_old import update_ssl, update_pdf
 
 
 if __name__ == "__main__":
-    pre_cut("2.jpg", cut_bg=True)
+    t1 = time.perf_counter()
+    backup()
+    asyncio.run(scan_update())
+    # clean(SEC)
+    print(time.perf_counter()-t1)

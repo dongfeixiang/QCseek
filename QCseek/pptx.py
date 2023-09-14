@@ -17,6 +17,7 @@ class Slide:
         self._bs = None
         self._rel = None
         self.ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
+        self.rns = {"r":"http://schemas.openxmlformats.org/package/2006/relationships"}
 
     async def from_bufferedIO(self, file, rel):
         t_file = asyncio.to_thread(ET.parse, file)
@@ -40,7 +41,7 @@ class Slide:
 
     def get_image_names(self):
         # 这样获取的图片可能存在显示与原图片发生变换
-        relations = self._rel.findall(".//Relationship")
+        relations = self._rel.findall(".//r:Relationship", self.rns)
         image_list = [
             r.get("Target").replace("..", "ppt")
             for r in relations

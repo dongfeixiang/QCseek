@@ -83,17 +83,25 @@ class SDS(BaseModel):
         async with PPTX(src.shortpathname) as ppt:
             slides = await ppt.slides()
             for slide in slides:
-                tables = await slide.get_tables()
+                tables = slide.get_tables()
                 tables = [t for t in tables if len(t.columns) <= 10]
                 if not tables:
                     continue
-                images = await slide.get_image_names()
+                images = slide.get_image_names()
                 if not images:
                     raise ValueError("NoImage")
                 # 同一张幻灯片中会出现幽灵图片，不能抛出多图异常，暂取第一张图
                 # if len(images) > 1:
                 #     raise ValueError("MultiImages")
                 sds_list = [cls.from_dataframe(t) for t in tables]
+                # 解决部分表无相关信息列方案
+                # sds_list = []
+                # for t in tables:
+                #     try:
+                #         sds = cls.from_dataframe(t)
+                #         sds_list.append(sds)
+                #     except IndexError:
+                #         pass
                 sds_list = sum(sds_list, [])
                 for sds in sds_list:
                     sds.source, sds.pic = src, images[0]
@@ -166,6 +174,14 @@ class SEC(BaseModel):
         async with PPTX(src.shortpathname) as ppt:
             tables = await ppt.get_tables()
             sec_list = [cls.from_dataframe(t) for t in tables]
+            # 解决部分表无相关信息列方案
+            # sec_list = []
+            # for t in tables:
+            #     try:
+            #         sec = cls.from_dataframe(t)
+            #         sec.append(sec)
+            #     except IndexError:
+            #         pass
             sec_list = sum(sec_list, [])
             for sec in sec_list:
                 sec.source = src
@@ -219,6 +235,7 @@ class LAL(BaseModel):
             if (not df[pid_i][i]) or (df[pid_i][i].isspace()):
                 continue
             lal = cls(pid=df[pid_i][i], value=df[lal_i][i])
+            # lal = cls(pid=df.iloc[i, 1], value=df.iloc[i, 4])
             res.append(lal)
         return res
 
@@ -228,6 +245,14 @@ class LAL(BaseModel):
         async with PPTX(src.shortpathname) as ppt:
             tables = await ppt.get_tables()
             lal_list = [cls.from_dataframe(t) for t in tables]
+            # 解决部分表无相关信息列方案
+            # lal_list = []
+            # for t in tables:
+            #     try:
+            #         lal = cls.from_dataframe(t)
+            #         lal_list.append(lal)
+            #     except IndexError:
+            #         pass
             lal_list = sum(lal_list, [])
             for lal in lal_list:
                 lal.source = src

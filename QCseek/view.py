@@ -20,7 +20,8 @@ BASE_DIR = Path(
 SDS_FOLDER = BASE_DIR / "SDS-PAGE"
 SEC_FOLDER = BASE_DIR / "SEC"
 LAL_FOLDER = BASE_DIR / "LAL"
-WHITE = []
+WHITE = [
+]
 
 
 def scan(dir):
@@ -31,7 +32,7 @@ def scan(dir):
             if i.is_dir():
                 res += scan(i)
             # 排除白名单文件和Windows临时文件
-            elif (i.path not in WHITE) and (not i.name.startswith("~$")):
+            elif (i.name not in WHITE) and (not i.name.startswith("~$")):
                 name = i.name.lower()
                 if name.endswith("pptx") or name.endswith("pdf"):
                     folder = i.path.replace(i.name, "")[:-1]
@@ -99,6 +100,8 @@ async def create_ssl(path: str, name: str, model: BaseModel) -> list[BaseModel]:
             return updating
     except Exception as e:
         raise CreateError(qcfile, path, name, str(e))
+    finally:
+        print(path, name)
 
 
 async def attach_pdf(path: str, name: str):
@@ -171,8 +174,8 @@ async def batch_attach_pdf(file_list):
     # 更新数据库
     with db.atomic():
         SEC.bulk_update(updating, fields=["attach"], batch_size=100)
-        for i in failed:
-            i.delete_instance()
+        # for i in failed:
+        #     i.delete_instance()
     return errors
 
 
@@ -191,7 +194,7 @@ async def scan_update():
     pd.DataFrame(
         errors,
         columns=["path", "name", "error"]
-    ).to_excel("out/error.xlsx", index=False)
+    ).to_excel("out/errors.xlsx", index=False)
 
 
 def clean(Model):
@@ -204,7 +207,10 @@ def clean(Model):
             query = Model.select().where(
                 Model.pid == item.pid,
                 Model.purity == item.purity,
-                Model.source == item.source
+                Model.source == item.source,
+                Model.pic == item.pic,
+                Model.non_reduced_lane == item.non_reduced_lane,
+                Model.reduced_lane == item.reduced_lane
             )
         elif Model == SEC:
             query = Model.select().where(
@@ -213,7 +219,9 @@ def clean(Model):
                 Model.hmw == item.hmw,
                 Model.monomer == item.monomer,
                 Model.lmw == item.lmw,
-                Model.source == item.source
+                Model.source == item.source,
+                Model.attach == item.attach,
+                Model.pic_num == item.pic_num
             )
         elif Model == LAL:
             query = Model.select().where(
@@ -225,10 +233,11 @@ def clean(Model):
             i_set = [i.id for i in query]
             i_set.remove(min(i_set))
             deleting.update(i_set)
-    backup()
-    with db.atomic():
-        for d in deleting:
-            Model.get(Model.id == d).delete_instance()
+    print(deleting)
+    # backup()
+    # with db.atomic():
+    #     for d in deleting:
+    #         Model.get(Model.id == d).delete_instance()
 
 
 def backup():
