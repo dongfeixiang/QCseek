@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 
-def pre_cut(img: str, cut_bg: bool = False):
+def pre_cut(img, cut_bg: bool = False):
     '''图片预处理，裁剪，灰度化，背景减除'''
-    img_gray = cv2.imread(img, cv2.IMREAD_GRAYSCALE)
+    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # 根据阈值二值化
     _, img_b = cv2.threshold(img_gray, 254, 255, cv2.THRESH_BINARY)
     row = np.array(img_b)
@@ -26,7 +26,7 @@ def pre_cut(img: str, cut_bg: bool = False):
             img_gray, 30, use_paraboloid=True)
     # 灰度反转
     img_gray = np.ones(img_gray.shape, dtype=np.uint8)*255-np.array(img_gray)
-    return cv2.imread(img)[top+10:, :], img_gray
+    return img[top+10:, :], img_gray
 
 
 def gel_crop(img: np.ndarray) -> list:

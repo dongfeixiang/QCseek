@@ -78,7 +78,7 @@ class CreateError(Exception):
         self.name = name
 
 
-async def create_ssl(path: str, name: str, model: BaseModel) -> list[BaseModel]:
+async def create_ssl(path: str, name: str, model) -> list[BaseModel]:
     '''
     从文件批量创建SDS/SEC/LAL实例
 
@@ -127,7 +127,7 @@ async def attach_pdf(path: str, name: str):
         raise CreateError(qcfile, path, name, str(e))
 
 
-async def batch_create_ssl(file_list, model: BaseModel):
+async def batch_create_ssl(file_list, model):
     '''从文件列表批量创建SDS/SEC/LAL'''
     tasks = [create_ssl(path, name, model)
              for path, name in file_list
@@ -180,6 +180,7 @@ async def batch_attach_pdf(file_list):
 
 
 async def scan_update():
+    '''扫描文件夹并更新数据库'''
     sds_files = scan(SDS_FOLDER)
     sec_files = scan(SEC_FOLDER)
     lal_files = scan(LAL_FOLDER)
@@ -197,47 +198,47 @@ async def scan_update():
     ).to_excel("out/errors.xlsx", index=False)
 
 
-def clean(Model):
+def clean(model):
     '''清洗数据库，删除重复项'''
     deleting = set()
-    query_all = Model.select()
+    query_all = model.select()
     for item in query_all:
         query = None
-        if Model == SDS:
-            query = Model.select().where(
-                Model.pid == item.pid,
-                Model.purity == item.purity,
-                Model.source == item.source,
-                Model.pic == item.pic,
-                Model.non_reduced_lane == item.non_reduced_lane,
-                Model.reduced_lane == item.reduced_lane
+        if model == SDS:
+            query = model.select().where(
+                model.pid == item.pid,
+                model.purity == item.purity,
+                model.source == item.source,
+                model.pic == item.pic,
+                model.non_reduced_lane == item.non_reduced_lane,
+                model.reduced_lane == item.reduced_lane
             )
-        elif Model == SEC:
-            query = Model.select().where(
-                Model.pid == item.pid,
-                Model.retention_time == item.retention_time,
-                Model.hmw == item.hmw,
-                Model.monomer == item.monomer,
-                Model.lmw == item.lmw,
-                Model.source == item.source,
-                Model.attach == item.attach,
-                Model.pic_num == item.pic_num
+        elif model == SEC:
+            query = model.select().where(
+                model.pid == item.pid,
+                model.retention_time == item.retention_time,
+                model.hmw == item.hmw,
+                model.monomer == item.monomer,
+                model.lmw == item.lmw,
+                model.source == item.source,
+                model.attach == item.attach,
+                model.pic_num == item.pic_num
             )
-        elif Model == LAL:
-            query = Model.select().where(
-                Model.pid == item.pid,
-                Model.value == item.value,
-                Model.source == item.source
+        elif model == LAL:
+            query = model.select().where(
+                model.pid == item.pid,
+                model.value == item.value,
+                model.source == item.source
             )
         if len(query) > 1:
             i_set = [i.id for i in query]
             i_set.remove(min(i_set))
             deleting.update(i_set)
     print(deleting)
-    # backup()
-    # with db.atomic():
-    #     for d in deleting:
-    #         Model.get(Model.id == d).delete_instance()
+    backup()
+    with db.atomic():
+        for d in deleting:
+            model.get(model.id == d).delete_instance()
 
 
 def backup():
@@ -245,47 +246,20 @@ def backup():
     shutil.copy("sqlite.db", "sqlite_bak.db")
 
 
-def extract_sds(sds: SDS):
+async def extract_sds(sds: SDS):
     '''提取SDS图片'''
-    # 转换长文件路径
-    pathname = sds.source.pathname
-    pathname = GetShortPathName(pathname) if len(pathname) > 255 else pathname
-    ppt = ZipFile(pathname)
-    slides = (i for i in ppt.namelist() if i.startswith("ppt/slides/slide"))
-    # 解析PPT XML数据
-    for s in slides:
-        with ppt.open(s) as slide:
-            bs = BeautifulSoup(slide, features="xml")
-            if sds.pid in bs.text:
-                # 获取泳道
-                trs = bs.find_all("a:tr")
-                for tr in trs:
-                    if sds.pid in tr.text:
-                        lane = int(tr.find("tc").text)
-                # 提取图片
-                rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-                with ppt.open(rel) as slide_rel:
-                    rel_bs = BeautifulSoup(slide_rel, features="xml")
-                    relationships = rel_bs.find_all("Relationship")
-                    for re in relationships:
-                        if "media" in re["Target"]:
-                            img = re["Target"].replace("..", "ppt")
-                            ppt.extract(img, f"{sds.pid}/SDS")
-                            img = f"{sds.pid}/SDS/{img}"
-    return img, lane
-
-
-def extract_sds_lane(img, lane):
-    img, img_gray = pre_cut(img, cut_bg=True)
-    lines = gel_crop(img_gray)
-    non_reduced = img[:, lines[lane-1]:lines[lane]]
-    marker = img[:, lines[7]:lines[8]]
-    reduced = img[:, lines[7+lane]:lines[8+lane]]
-    sds_img = np.hstack([non_reduced, marker, reduced])
-    sds_img = cv2.resize(sds_img, (200, 720))
-    temp = cv2.imread("marker.png")
-    temp[40:, 60:] = sds_img
-    return temp
+    async with PPTX(sds.source.shortpathname) as ppt:
+        img = await ppt.get_image_by_name(sds.pic)
+        img, img_gray = pre_cut(img, cut_bg=True)
+        lines = gel_crop(img_gray)
+        non_reduced = img[:, lines[sds.non_reduced_lane-1]:lines[sds.non_reduced_lane]]
+        marker = img[:, lines[7]:lines[8]]
+        reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
+        sds_img = np.hstack([non_reduced, marker, reduced])
+        sds_img = cv2.resize(sds_img, (200, 720))
+        temp = cv2.imread("resource/marker.png")
+        temp[40:, 60:] = sds_img
+        return temp
 
 
 async def extract_sec(sec: SEC):

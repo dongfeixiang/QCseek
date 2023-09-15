@@ -1,6 +1,5 @@
 import asyncio
 from zipfile import ZipFile
-from typing import overload
 import xml.etree.ElementTree as ET
 
 import cv2
@@ -16,10 +15,20 @@ class Slide:
     def __init__(self):
         self._bs = None
         self._rel = None
-        self.ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main"}
-        self.rns = {"r":"http://schemas.openxmlformats.org/package/2006/relationships"}
+        self.ns = {}
+        self.rns = {}
 
     async def from_bufferedIO(self, file, rel):
+        '''从字节流中初始化解析器'''
+        # 读取XML命名空间
+        ns_coro = asyncio.to_thread(ET.iterparse, file, ["start-ns"])
+        rns_coro = asyncio.to_thread(ET.iterparse, rel, ["start-ns"])
+        ns, rns = await asyncio.gather(ns_coro, rns_coro)
+        self.ns = dict([i for _, i in ns])
+        self.rns = dict([i for _, i in rns])
+        # 恢复文件指针，重新初始化ET解析器
+        file.seek(0)
+        rel.seek(0)
         t_file = asyncio.to_thread(ET.parse, file)
         t_rel = asyncio.to_thread(ET.parse, rel)
         self._bs, self._rel = await asyncio.gather(t_file, t_rel)
@@ -41,7 +50,7 @@ class Slide:
 
     def get_image_names(self):
         # 这样获取的图片可能存在显示与原图片发生变换
-        relations = self._rel.findall(".//r:Relationship", self.rns)
+        relations = self._rel.findall(".//Relationship", self.rns)
         image_list = [
             r.get("Target").replace("..", "ppt")
             for r in relations
@@ -96,27 +105,25 @@ class PPTX:
         tables = [slide.get_tables() for slide in slides]
         return sum(tables, [])
 
-    @overload
-    async def get_image(self, xref: str):
+    async def get_image_by_name(self, xref: str):
         '''读取二进制图片数据'''
         fp = await self.open(xref)
-        return cv2.imdecode(np.fromstring(fp.read(), dtype=np.uint8), 1)
+        return cv2.imdecode(np.frombuffer(fp.read(), dtype=np.uint8), 1)
 
-    @overload
-    async def get_image(self, index: int):
-        bs = BeautifulSoup(slide, features="xml")
-        title = bs.find("p:ph", type="title")
-        if title and title.parent.parent.parent.text == pic:
-            # 提取图片
-            rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-            with ppt.open(rel) as slide_rel:
-                rel_bs = BeautifulSoup(slide_rel, features="xml")
-                relationships = rel_bs.find_all("Relationship")
-                for re in relationships:
-                    if "media" in re["Target"]:
-                        img = re["Target"].replace("..", "ppt")
-                ppt.extract(img, f"{sec.pid}/SEC")
-                img = f"{sec.pid}/SEC/{img}"
+    async def get_image_by_index(self, index: int):
+        # bs = BeautifulSoup(slide, features="xml")
+        # title = bs.find("p:ph", type="title")
+        # if title and title.parent.parent.parent.text == pic:
+        #     # 提取图片
+        #     rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
+        #     with ppt.open(rel) as slide_rel:
+        #         rel_bs = BeautifulSoup(slide_rel, features="xml")
+        #         relationships = rel_bs.find_all("Relationship")
+        #         for re in relationships:
+        #             if "media" in re["Target"]:
+        #                 img = re["Target"].replace("..", "ppt")
+        #         ppt.extract(img, f"{sec.pid}/SEC")
+        #         img = f"{sec.pid}/SEC/{img}"
         return
 
 
@@ -126,9 +133,14 @@ class PPTX:
 #             ...
 
 
-# async def main():
-#     tasks = [open_ppt() for _ in range(21)]
-#     await asyncio.gather(*tasks)
+async def main():
+    async with PPTX("2.pptx") as ppt:
+        for s in await ppt.slides():
+            pixs = s.get_image_names()
+            for i in pixs:
+                img = await ppt.get_image_by_name(i)
+                cv2.imshow("", img)
+                cv2.waitKey()
 
-# if __name__ == "__main__":
-#     asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
