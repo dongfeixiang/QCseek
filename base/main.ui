@@ -6,24 +6,70 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>727</width>
-    <height>537</height>
+    <width>700</width>
+    <height>492</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">border: none</string>
+   <string notr="true"/>
   </property>
   <layout class="QHBoxLayout" name="horizontalLayout">
    <property name="spacing">
     <number>0</number>
    </property>
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
    <item>
     <widget class="QFrame" name="frame">
      <property name="styleSheet">
-      <string notr="true">border: none;</string>
+      <string notr="true">QFrame {
+	border: none;
+}
+#header {
+	background-color: rgb(126, 126, 126);
+	border-top-left-radius: 10px;
+	border-top-right-radius: 10px;
+}
+QFrame#header QPushButton {
+	background: transparent;
+}
+QFrame#header QPushButton:hover {
+	border:none;
+	background-color: rgb(135, 135, 135);
+}
+QFrame#header #closeButton:hover {
+	background-color: rgb(255, 0, 0);
+}
+#asider {
+	background-color: rgb(104, 104, 104);
+	border-bottom-left-radius: 10px;
+}
+QFrame#asider QPushButton {
+	font-size: 10pt;
+	color: rgb(255, 255, 255);
+	border-radius: 2px;
+}
+QFrame#asider QPushButton:hover {
+	color: rgb(0, 0, 0);
+	background-color: rgb(184, 184, 184);
+}
+#main {
+	background-color: rgb(80, 80, 80);
+	border-bottom-right-radius: 10px;
+}</string>
      </property>
      <property name="frameShape">
       <enum>QFrame::StyledPanel</enum>
@@ -48,7 +94,7 @@
        <number>0</number>
       </property>
       <item>
-       <widget class="QFrame" name="frame_2">
+       <widget class="QFrame" name="header">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
           <horstretch>0</horstretch>
@@ -56,14 +102,7 @@
          </sizepolicy>
         </property>
         <property name="styleSheet">
-         <string notr="true">#frame_2 {
-	background-color: rgb(126, 126, 126);
-	border-top-left-radius: 10px;
-	border-top-right-radius: 10px;
-}
-QPushButton:hover {
-	background-color: rgb(135, 135, 135)
-}</string>
+         <string notr="true"/>
         </property>
         <property name="frameShape">
          <enum>QFrame::StyledPanel</enum>
@@ -186,12 +225,15 @@ QPushButton:hover {
                 <number>0</number>
                </property>
                <item>
-                <widget class="QPushButton" name="pushButton">
+                <widget class="QPushButton" name="minimizeButton">
                  <property name="minimumSize">
                   <size>
                    <width>20</width>
                    <height>20</height>
                   </size>
+                 </property>
+                 <property name="autoFillBackground">
+                  <bool>false</bool>
                  </property>
                  <property name="text">
                   <string/>
@@ -209,7 +251,7 @@ QPushButton:hover {
                 </widget>
                </item>
                <item>
-                <widget class="QPushButton" name="pushButton_10">
+                <widget class="QPushButton" name="maximizeButton">
                  <property name="minimumSize">
                   <size>
                    <width>20</width>
@@ -232,7 +274,7 @@ QPushButton:hover {
                 </widget>
                </item>
                <item>
-                <widget class="QPushButton" name="pushButton_2">
+                <widget class="QPushButton" name="closeButton">
                  <property name="minimumSize">
                   <size>
                    <width>20</width>
@@ -287,6 +329,9 @@ QPushButton:hover {
           <verstretch>9</verstretch>
          </sizepolicy>
         </property>
+        <property name="styleSheet">
+         <string notr="true"/>
+        </property>
         <property name="frameShape">
          <enum>QFrame::StyledPanel</enum>
         </property>
@@ -310,7 +355,7 @@ QPushButton:hover {
           <number>0</number>
          </property>
          <item>
-          <widget class="QFrame" name="frame_4">
+          <widget class="QFrame" name="asider">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
              <horstretch>2</horstretch>
@@ -318,8 +363,7 @@ QPushButton:hover {
             </sizepolicy>
            </property>
            <property name="styleSheet">
-            <string notr="true">background-color: rgb(104, 104, 104);
-border-bottom-left-radius: 10px;</string>
+            <string notr="true"/>
            </property>
            <property name="frameShape">
             <enum>QFrame::StyledPanel</enum>
@@ -329,7 +373,7 @@ border-bottom-left-radius: 10px;</string>
            </property>
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <property name="spacing">
-             <number>10</number>
+             <number>0</number>
             </property>
             <property name="leftMargin">
              <number>20</number>
@@ -339,14 +383,20 @@ border-bottom-left-radius: 10px;</string>
             </property>
             <item>
              <widget class="QPushButton" name="pushButton_3">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>30</height>
+               </size>
+              </property>
               <property name="styleSheet">
-               <string notr="true">QPushButton {
-	color: rgb(255, 255, 255);
-	border-radius: 2px;
-}
-QPushButton:hover {
-	background-color: rgb(184, 184, 184)
-}</string>
+               <string notr="true"/>
               </property>
               <property name="text">
                <string>我的日程</string>
@@ -355,14 +405,14 @@ QPushButton:hover {
             </item>
             <item>
              <widget class="QPushButton" name="pushButton_4">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>30</height>
+               </size>
+              </property>
               <property name="styleSheet">
-               <string notr="true">QPushButton {
-	color: rgb(255, 255, 255);
-	border-radius: 2px;
-}
-QPushButton:hover {
-	background-color: rgb(184, 184, 184)
-}</string>
+               <string notr="true"/>
               </property>
               <property name="text">
                <string>我的项目</string>
@@ -371,14 +421,14 @@ QPushButton:hover {
             </item>
             <item>
              <widget class="QPushButton" name="pushButton_5">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>30</height>
+               </size>
+              </property>
               <property name="styleSheet">
-               <string notr="true">QPushButton {
-	color: rgb(255, 255, 255);
-	border-radius: 2px;
-}
-QPushButton:hover {
-	background-color: rgb(184, 184, 184)
-}</string>
+               <string notr="true"/>
               </property>
               <property name="text">
                <string>我的数据</string>
@@ -402,7 +452,7 @@ QPushButton:hover {
           </widget>
          </item>
          <item>
-          <widget class="QFrame" name="frame_5">
+          <widget class="QFrame" name="main">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
              <horstretch>8</horstretch>
@@ -410,10 +460,7 @@ QPushButton:hover {
             </sizepolicy>
            </property>
            <property name="styleSheet">
-            <string notr="true">QFrame#frame_5 {
-	background-color: rgb(80, 80, 80);
-	border-bottom-right-radius: 10px;
-}</string>
+            <string notr="true"/>
            </property>
            <property name="frameShape">
             <enum>QFrame::StyledPanel</enum>
@@ -546,7 +593,7 @@ QPushButton:hover {
                   <property name="sizePolicy">
                    <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                     <horstretch>0</horstretch>
-                    <verstretch>2</verstretch>
+                    <verstretch>1</verstretch>
                    </sizepolicy>
                   </property>
                   <property name="frameShape">
@@ -556,8 +603,20 @@ QPushButton:hover {
                    <enum>QFrame::Raised</enum>
                   </property>
                   <layout class="QHBoxLayout" name="horizontalLayout_5">
+                   <property name="topMargin">
+                    <number>0</number>
+                   </property>
+                   <property name="bottomMargin">
+                    <number>0</number>
+                   </property>
                    <item>
                     <widget class="QLabel" name="label_3">
+                     <property name="maximumSize">
+                      <size>
+                       <width>16777215</width>
+                       <height>16777215</height>
+                      </size>
+                     </property>
                      <property name="styleSheet">
                       <string notr="true">color: rgb(255, 255, 255);
 font-size: 20pt;</string>
@@ -565,6 +624,53 @@ font-size: 20pt;</string>
                      <property name="text">
                       <string>数据界面</string>
                      </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QFrame" name="frame_2">
+                     <property name="frameShape">
+                      <enum>QFrame::StyledPanel</enum>
+                     </property>
+                     <property name="frameShadow">
+                      <enum>QFrame::Raised</enum>
+                     </property>
+                     <layout class="QHBoxLayout" name="horizontalLayout_11">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
+                      <item>
+                       <spacer name="horizontalSpacer_2">
+                        <property name="orientation">
+                         <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButton">
+                        <property name="text">
+                         <string>文件夹</string>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
                     </widget>
                    </item>
                   </layout>
@@ -707,6 +813,9 @@ border-radius: 1px;</string>
                      <attribute name="horizontalHeaderCascadingSectionResizes">
                       <bool>false</bool>
                      </attribute>
+                     <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+                      <bool>false</bool>
+                     </attribute>
                      <attribute name="horizontalHeaderStretchLastSection">
                       <bool>false</bool>
                      </attribute>
@@ -769,6 +878,14 @@ border-radius: 1px;</string>
                        <string>LAL (EU/mg)</string>
                       </property>
                      </column>
+                     <item row="0" column="0">
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="flags">
+                       <set>ItemIsSelectable|ItemIsEditable|ItemIsDragEnabled|ItemIsDropEnabled|ItemIsEnabled</set>
+                      </property>
+                     </item>
                     </widget>
                    </item>
                   </layout>
@@ -789,23 +906,37 @@ border-radius: 1px;</string>
    </item>
   </layout>
  </widget>
- <resources>
-  <include location="../resource/res.qrc"/>
- </resources>
+ <resources/>
  <connections>
   <connection>
-   <sender>pushButton_2</sender>
+   <sender>closeButton</sender>
    <signal>clicked()</signal>
    <receiver>Form</receiver>
    <slot>close()</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>625</x>
+     <x>712</x>
      <y>33</y>
     </hint>
     <hint type="destinationlabel">
      <x>642</x>
      <y>1</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>minimizeButton</sender>
+   <signal>clicked()</signal>
+   <receiver>Form</receiver>
+   <slot>showMinimized()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>652</x>
+     <y>20</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>573</x>
+     <y>-8</y>
     </hint>
    </hints>
   </connection>

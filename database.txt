@@ -1,8 +1,0 @@
-def database_information(pn):
-    config = {
-        'host': '139.224.83.66',
-        'user': 'erp_readonly',
-        'password': 'aLfQH4getbyht2br7CLX',
-        'database': 'sanyou_erp',
-        'port': 5367,
-        'charset': 'utf8' }

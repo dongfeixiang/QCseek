@@ -12,13 +12,39 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_Form(object):
     def setupUi(self, Form):
         Form.setObjectName("Form")
-        Form.resize(727, 537)
-        Form.setStyleSheet("border: none")
+        Form.resize(910, 611)
+        Form.setStyleSheet("")
         self.horizontalLayout = QtWidgets.QHBoxLayout(Form)
+        self.horizontalLayout.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout.setSpacing(0)
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.frame = QtWidgets.QFrame(parent=Form)
-        self.frame.setStyleSheet("border: none;")
+        self.frame.setStyleSheet("QFrame {\n"
+                                 "    border: none;\n"
+                                 "}\n"
+                                 "#header {\n"
+                                 "    background-color: rgb(126, 126, 126);\n"
+                                 "    border-top-left-radius: 10px;\n"
+                                 "    border-top-right-radius: 10px;\n"
+                                 "}\n"
+                                 "QFrame#header QPushButton {\n"
+                                 "    background: transparent;\n"
+                                 "}\n"
+                                 "QFrame#header QPushButton:hover {\n"
+                                 "    border:none;\n"
+                                 "    background-color: rgb(135, 135, 135);\n"
+                                 "}\n"
+                                 "QFrame#header #closeButton:hover {\n"
+                                 "    background-color: rgb(255, 0, 0);\n"
+                                 "}\n"
+                                 "#asider {\n"
+                                 "    background-color: rgb(104, 104, 104);\n"
+                                 "    border-bottom-left-radius: 10px;\n"
+                                 "}\n"
+                                 "#main {\n"
+                                 "    background-color: rgb(80, 80, 80);\n"
+                                 "    border-bottom-right-radius: 10px;\n"
+                                 "}")
         self.frame.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.frame.setObjectName("frame")
@@ -26,29 +52,22 @@ class Ui_Form(object):
         self.verticalLayout.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout.setSpacing(0)
         self.verticalLayout.setObjectName("verticalLayout")
-        self.frame_2 = QtWidgets.QFrame(parent=self.frame)
+        self.header = QtWidgets.QFrame(parent=self.frame)
         sizePolicy = QtWidgets.QSizePolicy(
             QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(1)
         sizePolicy.setHeightForWidth(
-            self.frame_2.sizePolicy().hasHeightForWidth())
-        self.frame_2.setSizePolicy(sizePolicy)
-        self.frame_2.setStyleSheet("#frame_2 {\n"
-                                   "    background-color: rgb(126, 126, 126);\n"
-                                   "    border-top-left-radius: 10px;\n"
-                                   "    border-top-right-radius: 10px;\n"
-                                   "}\n"
-                                   "QPushButton:hover {\n"
-                                   "    background-color: rgb(135, 135, 135)\n"
-                                   "}")
-        self.frame_2.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self.frame_2.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
-        self.frame_2.setObjectName("frame_2")
-        self.horizontalLayout_6 = QtWidgets.QHBoxLayout(self.frame_2)
+            self.header.sizePolicy().hasHeightForWidth())
+        self.header.setSizePolicy(sizePolicy)
+        self.header.setStyleSheet("")
+        self.header.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
+        self.header.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
+        self.header.setObjectName("header")
+        self.horizontalLayout_6 = QtWidgets.QHBoxLayout(self.header)
         self.horizontalLayout_6.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_6.setObjectName("horizontalLayout_6")
-        self.frame_15 = QtWidgets.QFrame(parent=self.frame_2)
+        self.frame_15 = QtWidgets.QFrame(parent=self.header)
         self.frame_15.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame_15.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.frame_15.setObjectName("frame_15")
@@ -75,7 +94,7 @@ class Ui_Form(object):
         spacerItem = QtWidgets.QSpacerItem(
             40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
         self.horizontalLayout_6.addItem(spacerItem)
-        self.frame_14 = QtWidgets.QFrame(parent=self.frame_2)
+        self.frame_14 = QtWidgets.QFrame(parent=self.header)
         self.frame_14.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame_14.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.frame_14.setObjectName("frame_14")
@@ -89,43 +108,44 @@ class Ui_Form(object):
         self.horizontalLayout_9 = QtWidgets.QHBoxLayout(self.frame_13)
         self.horizontalLayout_9.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_9.setObjectName("horizontalLayout_9")
-        self.pushButton = QtWidgets.QPushButton(parent=self.frame_13)
-        self.pushButton.setMinimumSize(QtCore.QSize(20, 20))
-        self.pushButton.setText("")
+        self.minimizeButton = QtWidgets.QPushButton(parent=self.frame_13)
+        self.minimizeButton.setMinimumSize(QtCore.QSize(20, 20))
+        self.minimizeButton.setAutoFillBackground(False)
+        self.minimizeButton.setText("")
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("resource/Minimize-2.png"),
                        QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
-        self.pushButton.setIcon(icon)
-        self.pushButton.setIconSize(QtCore.QSize(12, 12))
-        self.pushButton.setObjectName("pushButton")
-        self.horizontalLayout_9.addWidget(self.pushButton)
-        self.pushButton_10 = QtWidgets.QPushButton(parent=self.frame_13)
-        self.pushButton_10.setMinimumSize(QtCore.QSize(20, 20))
-        self.pushButton_10.setText("")
+        self.minimizeButton.setIcon(icon)
+        self.minimizeButton.setIconSize(QtCore.QSize(12, 12))
+        self.minimizeButton.setObjectName("minimizeButton")
+        self.horizontalLayout_9.addWidget(self.minimizeButton)
+        self.maximizeButton = QtWidgets.QPushButton(parent=self.frame_13)
+        self.maximizeButton.setMinimumSize(QtCore.QSize(20, 20))
+        self.maximizeButton.setText("")
         icon1 = QtGui.QIcon()
         icon1.addPixmap(QtGui.QPixmap("resource/Maximize-1.png"),
                         QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
-        self.pushButton_10.setIcon(icon1)
-        self.pushButton_10.setIconSize(QtCore.QSize(12, 12))
-        self.pushButton_10.setObjectName("pushButton_10")
-        self.horizontalLayout_9.addWidget(self.pushButton_10)
-        self.pushButton_2 = QtWidgets.QPushButton(parent=self.frame_13)
-        self.pushButton_2.setMinimumSize(QtCore.QSize(20, 20))
-        self.pushButton_2.setStyleSheet("")
-        self.pushButton_2.setText("")
+        self.maximizeButton.setIcon(icon1)
+        self.maximizeButton.setIconSize(QtCore.QSize(12, 12))
+        self.maximizeButton.setObjectName("maximizeButton")
+        self.horizontalLayout_9.addWidget(self.maximizeButton)
+        self.closeButton = QtWidgets.QPushButton(parent=self.frame_13)
+        self.closeButton.setMinimumSize(QtCore.QSize(20, 20))
+        self.closeButton.setStyleSheet("")
+        self.closeButton.setText("")
         icon2 = QtGui.QIcon()
         icon2.addPixmap(QtGui.QPixmap("resource/close.png"),
                         QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
-        self.pushButton_2.setIcon(icon2)
-        self.pushButton_2.setIconSize(QtCore.QSize(12, 12))
-        self.pushButton_2.setObjectName("pushButton_2")
-        self.horizontalLayout_9.addWidget(self.pushButton_2)
+        self.closeButton.setIcon(icon2)
+        self.closeButton.setIconSize(QtCore.QSize(12, 12))
+        self.closeButton.setObjectName("closeButton")
+        self.horizontalLayout_9.addWidget(self.closeButton)
         self.verticalLayout_7.addWidget(self.frame_13)
         spacerItem1 = QtWidgets.QSpacerItem(
             20, 40, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding)
         self.verticalLayout_7.addItem(spacerItem1)
         self.horizontalLayout_6.addWidget(self.frame_14)
-        self.verticalLayout.addWidget(self.frame_2)
+        self.verticalLayout.addWidget(self.header)
         self.frame_3 = QtWidgets.QFrame(parent=self.frame)
         sizePolicy = QtWidgets.QSizePolicy(
             QtWidgets.QSizePolicy.Policy.Preferred, QtWidgets.QSizePolicy.Policy.Expanding)
@@ -134,6 +154,7 @@ class Ui_Form(object):
         sizePolicy.setHeightForWidth(
             self.frame_3.sizePolicy().hasHeightForWidth())
         self.frame_3.setSizePolicy(sizePolicy)
+        self.frame_3.setStyleSheet("")
         self.frame_3.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame_3.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.frame_3.setObjectName("frame_3")
@@ -141,24 +162,23 @@ class Ui_Form(object):
         self.horizontalLayout_2.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_2.setSpacing(0)
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
-        self.frame_4 = QtWidgets.QFrame(parent=self.frame_3)
+        self.asider = QtWidgets.QFrame(parent=self.frame_3)
         sizePolicy = QtWidgets.QSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(2)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(
-            self.frame_4.sizePolicy().hasHeightForWidth())
-        self.frame_4.setSizePolicy(sizePolicy)
-        self.frame_4.setStyleSheet("background-color: rgb(104, 104, 104);\n"
-                                   "border-bottom-left-radius: 10px;")
-        self.frame_4.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self.frame_4.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
-        self.frame_4.setObjectName("frame_4")
-        self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.frame_4)
+            self.asider.sizePolicy().hasHeightForWidth())
+        self.asider.setSizePolicy(sizePolicy)
+        self.asider.setStyleSheet("")
+        self.asider.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
+        self.asider.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
+        self.asider.setObjectName("asider")
+        self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.asider)
         self.verticalLayout_2.setContentsMargins(20, -1, 20, -1)
         self.verticalLayout_2.setSpacing(10)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.pushButton_3 = QtWidgets.QPushButton(parent=self.frame_4)
+        self.pushButton_3 = QtWidgets.QPushButton(parent=self.asider)
         self.pushButton_3.setStyleSheet("QPushButton {\n"
                                         "    color: rgb(255, 255, 255);\n"
                                         "    border-radius: 2px;\n"
@@ -168,7 +188,7 @@ class Ui_Form(object):
                                         "}")
         self.pushButton_3.setObjectName("pushButton_3")
         self.verticalLayout_2.addWidget(self.pushButton_3)
-        self.pushButton_4 = QtWidgets.QPushButton(parent=self.frame_4)
+        self.pushButton_4 = QtWidgets.QPushButton(parent=self.asider)
         self.pushButton_4.setStyleSheet("QPushButton {\n"
                                         "    color: rgb(255, 255, 255);\n"
                                         "    border-radius: 2px;\n"
@@ -178,7 +198,7 @@ class Ui_Form(object):
                                         "}")
         self.pushButton_4.setObjectName("pushButton_4")
         self.verticalLayout_2.addWidget(self.pushButton_4)
-        self.pushButton_5 = QtWidgets.QPushButton(parent=self.frame_4)
+        self.pushButton_5 = QtWidgets.QPushButton(parent=self.asider)
         self.pushButton_5.setStyleSheet("QPushButton {\n"
                                         "    color: rgb(255, 255, 255);\n"
                                         "    border-radius: 2px;\n"
@@ -191,25 +211,22 @@ class Ui_Form(object):
         spacerItem2 = QtWidgets.QSpacerItem(
             20, 40, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding)
         self.verticalLayout_2.addItem(spacerItem2)
-        self.horizontalLayout_2.addWidget(self.frame_4)
-        self.frame_5 = QtWidgets.QFrame(parent=self.frame_3)
+        self.horizontalLayout_2.addWidget(self.asider)
+        self.main = QtWidgets.QFrame(parent=self.frame_3)
         sizePolicy = QtWidgets.QSizePolicy(
             QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(8)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(
-            self.frame_5.sizePolicy().hasHeightForWidth())
-        self.frame_5.setSizePolicy(sizePolicy)
-        self.frame_5.setStyleSheet("QFrame#frame_5 {\n"
-                                   "    background-color: rgb(80, 80, 80);\n"
-                                   "    border-bottom-right-radius: 10px;\n"
-                                   "}")
-        self.frame_5.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self.frame_5.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
-        self.frame_5.setObjectName("frame_5")
-        self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.frame_5)
+            self.main.sizePolicy().hasHeightForWidth())
+        self.main.setSizePolicy(sizePolicy)
+        self.main.setStyleSheet("")
+        self.main.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
+        self.main.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
+        self.main.setObjectName("main")
+        self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.main)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
-        self.stackedWidget = QtWidgets.QStackedWidget(parent=self.frame_5)
+        self.stackedWidget = QtWidgets.QStackedWidget(parent=self.main)
         self.stackedWidget.setObjectName("stackedWidget")
         self.page = QtWidgets.QWidget()
         self.page.setObjectName("page")
@@ -409,13 +426,14 @@ class Ui_Form(object):
         self.verticalLayout_6.addWidget(self.frame_11)
         self.stackedWidget.addWidget(self.page_3)
         self.verticalLayout_3.addWidget(self.stackedWidget)
-        self.horizontalLayout_2.addWidget(self.frame_5)
+        self.horizontalLayout_2.addWidget(self.main)
         self.verticalLayout.addWidget(self.frame_3)
         self.horizontalLayout.addWidget(self.frame)
 
         self.retranslateUi(Form)
         self.stackedWidget.setCurrentIndex(2)
-        self.pushButton_2.clicked.connect(Form.close)  # type: ignore
+        self.closeButton.clicked.connect(Form.close)  # type: ignore
+        self.minimizeButton.clicked.connect(Form.showMinimized)  # type: ignore
         QtCore.QMetaObject.connectSlotsByName(Form)
 
     def retranslateUi(self, Form):

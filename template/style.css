@@ -106,9 +106,13 @@ td.title {
 }
 
 .sds {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
-    grid-template-rows: 1fr 5fr;
+    display: flex;
+    flex-direction: column;
+}
+
+.sds .sds-data {
+    display: flex;
+    gap: 15px;
 }
 
 .sds img {
