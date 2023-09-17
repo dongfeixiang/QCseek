@@ -1,12 +1,15 @@
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QWidget, QPushButton
+from PyQt6.QtWidgets import QWidget
 
 
-class DraggableWindow(QWidget):
-    def __init__(self):
+class FramelessWindow(QWidget):
+    '''无边框窗口, 实现鼠标拖拽事件'''
+
+    def __init__(self) -> None:
         super().__init__()
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton and self.isMaximized() == False:

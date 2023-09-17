@@ -53,7 +53,7 @@ class SDS(BaseModel):
     reduced_lane = IntegerField(null=True)
 
     def __str__(self):
-        return f"SDS({self.pid},{self.purity},{self.pic},{self.non_reduced_lane},{self.reduced_lane})"
+        return f"SDS({self.pid},{self.purity})"
 
     @classmethod
     def from_dataframe(cls, df: DataFrame):
@@ -125,6 +125,9 @@ class SEC(BaseModel):
     source = ForeignKeyField(QCFile, backref="sec_set", on_delete="CASCADE")
     attach = ForeignKeyField(QCFile, backref="sec_attach_set", null=True)
     pic_num = IntegerField(null=True)
+
+    def __str__(self) -> str:
+        return f"SEC({self.pid}, {self.monomer})"
 
     @classmethod
     def from_dataframe(cls, df: DataFrame):
@@ -216,6 +219,9 @@ class LAL(BaseModel):
     pid = CharField(max_length=20)
     value = CharField(max_length=20)
     source = ForeignKeyField(QCFile, backref="lal_set", on_delete="CASCADE")
+
+    def __str__(self) -> str:
+        return f"LAL({self.pid}, {self.value})"
 
     @classmethod
     def from_dataframe(cls, df: DataFrame):
