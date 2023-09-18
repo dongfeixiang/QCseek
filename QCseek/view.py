@@ -8,10 +8,11 @@ import cv2
 import fitz
 import numpy as np
 import pandas as pd
+
+from base.async_thread import AsyncThread
 from .sds_reader import pre_cut, gel_crop
-
 from .model import *
-
+from .coa import CoAData, find_by_pid
 
 # F盘文件夹路径
 BASE_DIR = Path(
@@ -127,172 +128,180 @@ async def attach_pdf(path: str, name: str):
         raise CreateError(qcfile, path, name, str(e))
 
 
-async def batch_create_ssl(file_list, model):
-    '''从文件列表批量创建SDS/SEC/LAL'''
-    tasks = [create_ssl(path, name, model)
-             for path, name in file_list
-             if name.lower().endswith("pptx")]
-    res = await asyncio.gather(*tasks, return_exceptions=True)
-    updating, failed, errors = [], [], []
-    for r in res:
-        if isinstance(r, CreateError):
-            errors.append({
-                "path": r.path,
-                "name": r.name,
-                "error": str(r)
-            })
-            if r.qcfile is not None:
-                failed.append(r.qcfile)
-        else:
-            updating += r
-    # 更新数据库
-    with db.atomic():
-        model.bulk_create(updating, batch_size=100)
-        for i in failed:
-            i.delete_instance()
-    return errors
-
-
-async def batch_attach_pdf(file_list):
-    '''从文件列表批量添加SEC模型attach'''
-    tasks = [attach_pdf(path, name)
-             for path, name in file_list
-             if name.lower().endswith("pdf")]
-    res = await asyncio.gather(*tasks, return_exceptions=True)
-    updating, failed, errors = [], [], []
-    for r in res:
-        if isinstance(r, CreateError):
-            errors.append({
-                "path": r.path,
-                "name": r.name,
-                "error": str(r)
-            })
-            if r.qcfile is not None:
-                failed.append(r.qcfile)
-        else:
-            updating += r
-    # 更新数据库
-    with db.atomic():
-        SEC.bulk_update(updating, fields=["attach"], batch_size=100)
-        # for i in failed:
-        #     i.delete_instance()
-    return errors
-
-
-async def scan_update():
-    '''扫描文件夹并更新数据库'''
-    sds_files = scan(SDS_FOLDER)
-    sec_files = scan(SEC_FOLDER)
-    lal_files = scan(LAL_FOLDER)
-    errors = await asyncio.gather(
-        batch_create_ssl(sds_files, SDS),
-        batch_create_ssl(sec_files, SEC),
-        batch_create_ssl(lal_files, LAL)
-    )
-    errors.append(await batch_attach_pdf(sec_files))
-    errors = sum(errors, [])
-    # 输出错误文件
-    pd.DataFrame(
-        errors,
-        columns=["path", "name", "error"]
-    ).to_excel("out/errors.xlsx", index=False)
-
-
-def clean(model):
-    '''清洗数据库，删除重复项'''
-    deleting = set()
-    query_all = model.select()
-    for item in query_all:
-        query = None
-        if model == SDS:
-            query = model.select().where(
-                model.pid == item.pid,
-                model.purity == item.purity,
-                model.source == item.source,
-                model.pic == item.pic,
-                model.non_reduced_lane == item.non_reduced_lane,
-                model.reduced_lane == item.reduced_lane
-            )
-        elif model == SEC:
-            query = model.select().where(
-                model.pid == item.pid,
-                model.retention_time == item.retention_time,
-                model.hmw == item.hmw,
-                model.monomer == item.monomer,
-                model.lmw == item.lmw,
-                model.source == item.source,
-                model.attach == item.attach,
-                model.pic_num == item.pic_num
-            )
-        elif model == LAL:
-            query = model.select().where(
-                model.pid == item.pid,
-                model.value == item.value,
-                model.source == item.source
-            )
-        if len(query) > 1:
-            i_set = [i.id for i in query]
-            i_set.remove(min(i_set))
-            deleting.update(i_set)
-    print(deleting)
-    backup()
-    with db.atomic():
-        for d in deleting:
-            model.get(model.id == d).delete_instance()
-
-
 def backup():
     '''备份数据库'''
     shutil.copy("sqlite.db", "sqlite_bak.db")
 
 
-async def extract_sds(sds: SDS):
-    '''提取SDS图片'''
-    async with PPTX(sds.source.shortpathname) as ppt:
-        img = await ppt.get_image_by_name(sds.pic)
-        img, img_gray = pre_cut(img, cut_bg=True)
-        lines = gel_crop(img_gray)
-        non_reduced = img[:, lines[sds.non_reduced_lane-1]:lines[sds.non_reduced_lane]]
-        marker = img[:, lines[7]:lines[8]]
-        reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
-        sds_img = np.hstack([non_reduced, marker, reduced])
-        sds_img = cv2.resize(sds_img, (200, 720))
-        temp = cv2.imread("resource/marker.png")
-        temp[40:, 60:] = sds_img
-        return temp
+class AsyncTask(AsyncThread):
 
+    async def batch_create_ssl(self, file_list, model):
+        '''从文件列表批量创建SDS/SEC/LAL'''
+        tasks = []
+        for path, name in file_list:
+            if name.lower().endswith("pptx"):
+                task = asyncio.create_task(create_ssl(path, name, model))
+                task.add_done_callback(lambda t: self.iter.emit())
+                tasks.append(task)
+        res = await asyncio.gather(*tasks, return_exceptions=True)
+        updating, failed, errors = [], [], []
+        for r in res:
+            if isinstance(r, CreateError):
+                errors.append({
+                    "path": r.path,
+                    "name": r.name,
+                    "error": str(r)
+                })
+                if r.qcfile is not None:
+                    failed.append(r.qcfile)
+            else:
+                updating += r
+        # 更新数据库
+        with db.atomic():
+            model.bulk_create(updating, batch_size=100)
+            for i in failed:
+                i.delete_instance()
+        return errors
 
-async def extract_sec(sec: SEC):
-    '''提取SEC图片'''
-    if sec.attach:
-        # 提取PDF
-        try:
-            pdf = fitz.open(sec.attach.shortpathname)
-            page = pdf[sec.pic_num-1]
-            imgs = page.get_images()
-            pix = fitz.Pixmap(pdf, imgs[1][0])
-            # 转换Pixmap为ndarray
-            if not os.path.exists(sec.pid):
-                os.mkdir(sec.pid)
-            img = f"{sec.pid}/sec.png"
-            pix.save(img)
-        except IndexError:
-            pix = page.get_pixmap(dpi=300)
-            if not os.path.exists(sec.pid):
-                os.mkdir(sec.pid)
-            img = f"{sec.pid}/sec.png"
-            pix.save(img)
-            cut_sec(img)
-        except Exception as e:
-            print(e)
-    else:
-        # 提取PPT
-        async with PPTX(sec.source.shortpathname) as ppt:
-            ppt.get_image(1)
+    async def batch_attach_pdf(self, file_list):
+        '''从文件列表批量添加SEC模型attach'''
+        tasks = []
+        for path, name in file_list:
+            if name.lower().endswith("pdf"):
+                task = asyncio.create_task(attach_pdf(path, name))
+                task.add_done_callback(lambda t: self.iter.emit())
+                tasks.append(task)
+        res = await asyncio.gather(*tasks, return_exceptions=True)
+        updating, failed, errors = [], [], []
+        for r in res:
+            if isinstance(r, CreateError):
+                errors.append({
+                    "path": r.path,
+                    "name": r.name,
+                    "error": str(r)
+                })
+                if r.qcfile is not None:
+                    failed.append(r.qcfile)
+            else:
+                updating += r
+        # 更新数据库
+        with db.atomic():
+            SEC.bulk_update(updating, fields=["attach"], batch_size=100)
+            for i in failed:
+                i.delete_instance()
+        return errors
 
-    return img
+    async def scan_update(self):
+        '''扫描文件夹并更新数据库'''
+        sds_files = scan(SDS_FOLDER)
+        sec_files = scan(SEC_FOLDER)
+        lal_files = scan(LAL_FOLDER)
+        errors = await asyncio.gather(
+            self.batch_create_ssl(sds_files, SDS),
+            self.batch_create_ssl(sec_files, SEC),
+            self.batch_create_ssl(lal_files, LAL)
+        )
+        errors.append(await self.batch_attach_pdf(sec_files))
+        errors = sum(errors, [])
+        # 输出错误文件
+        pd.DataFrame(
+            errors,
+            columns=["path", "name", "error"]
+        ).to_excel("out/errors.xlsx", index=False)
 
+    def clean(self, model):
+        '''清洗数据库，删除重复项'''
+        deleting = set()
+        query_all = model.select()
+        for item in query_all:
+            query = None
+            if model == SDS:
+                query = model.select().where(
+                    model.pid == item.pid,
+                    model.purity == item.purity,
+                    model.source == item.source,
+                    model.pic == item.pic,
+                    model.non_reduced_lane == item.non_reduced_lane,
+                    model.reduced_lane == item.reduced_lane
+                )
+            elif model == SEC:
+                query = model.select().where(
+                    model.pid == item.pid,
+                    model.retention_time == item.retention_time,
+                    model.hmw == item.hmw,
+                    model.monomer == item.monomer,
+                    model.lmw == item.lmw,
+                    model.source == item.source,
+                    model.attach == item.attach,
+                    model.pic_num == item.pic_num
+                )
+            elif model == LAL:
+                query = model.select().where(
+                    model.pid == item.pid,
+                    model.value == item.value,
+                    model.source == item.source
+                )
+            if len(query) > 1:
+                i_set = [i.id for i in query]
+                i_set.remove(min(i_set))
+                deleting.update(i_set)
+        backup()
+        with db.atomic():
+            for d in deleting:
+                model.get(model.id == d).delete_instance()
 
-def cut_sec(img):
-    sec_img = cv2.imread(img)
-    cv2.imwrite(img, sec_img[1000:1900, :])
+    async def extract_sds(self, sds: SDS):
+        '''提取SDS图片'''
+        async with PPTX(sds.source.shortpathname) as ppt:
+            img = await ppt.get_image_by_name(sds.pic)
+            img, img_gray = pre_cut(img, cut_bg=True)
+            lines = gel_crop(img_gray)
+            non_reduced = img[:, lines[sds.non_reduced_lane-1]:lines[sds.non_reduced_lane]]
+            marker = img[:, lines[7]:lines[8]]
+            reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
+            sds_img = np.hstack([non_reduced, marker, reduced])
+            sds_img = cv2.resize(sds_img, (200, 720))
+            temp = cv2.imread("resource/marker.png")
+            temp[40:, 60:] = sds_img
+            return temp
+
+    async def extract_sec(self, sec: SEC):
+        '''提取SEC图片'''
+        if sec.attach:
+            # 提取PDF
+            try:
+                # 第一种SEC图, 可直接读取PDF
+                pdf = fitz.open(sec.attach.shortpathname)
+                page = pdf[sec.pic_num-1]
+                imgs = page.get_images()
+                pix = fitz.Pixmap(pdf, imgs[1][0])
+            except IndexError:
+                # 第二种SEC图, 转化后裁剪
+                pix = page.get_pixmap(dpi=300)
+                # 裁剪
+                # pix[1000:1900, :]
+                # cut(pix)
+            finally:
+                # 转换Pixmap为ndarray
+                img_array = pix
+                return img_array
+        else:
+            # 提取PPT
+            async with PPTX(sec.source.shortpathname) as ppt:
+                return await ppt.get_image_by_index(sec.pic_num)
+
+    async def generate_coa(self, row):
+        folder = ""  # 存放文件夹
+        # 生成数据图
+        sds_img = await self.extract_sds(row.sds)
+        sec_img = await self.extract_sec(row.sec)
+        elisa_img = ""  # TODO
+        # 生成数据
+        pid = row.pid
+        data = find_by_pid(pid)
+        coa = CoAData.from_dbdata(data)
+        # coa.conclude_sds(row.sds)
+        # coa.conclude_sec(row.sec)
+        # coa.conclude_elisa(row.elisa)
+        html = coa.toHtml()
+        # 输出html or pdf

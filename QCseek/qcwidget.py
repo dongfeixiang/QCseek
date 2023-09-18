@@ -5,13 +5,15 @@ from PyQt6.QtCore import Qt, pyqtSignal, QRect
 from PyQt6.QtWidgets import (
     QTableWidget, QHeaderView, QTableWidgetItem,
     QAbstractItemView, QStyle, QStyleOptionButton,
-    QCheckBox, QWidget, QVBoxLayout, QMessageBox
+    QCheckBox, QWidget, QVBoxLayout, QMessageBox,
+    QDialog
 )
 
-from .qc_ui import Ui_Qc
-from .model import SDS, SEC, LAL
 from base.dialog import taskDialog
 from base.async_thread import AsyncThread
+from .qc_ui import Ui_Qc
+from .model import SDS, SEC, LAL
+from .coa import CoAData, find_by_pid
 
 
 class QcRow:
@@ -110,6 +112,13 @@ class QcTable(QTableWidget):
                 item.setCheckState(Qt.CheckState.Unchecked)
 
 
+class SampleDialog(QDialog):
+    '''样品信息对话框'''
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+
+
 class AsyncTask(AsyncThread):
     '''异步任务线程'''
 
@@ -143,7 +152,7 @@ class QcWidget(QWidget, Ui_Qc):
         self.searchButton.clicked.connect(self.search)
         self.exportButton.clicked.connect(self.export)
         self.deleteButton.clicked.connect(self.delete)
-        self.coaButton.clicked.connect(self.coa)
+        self.coaButton.clicked.connect(self.coa_query)
 
     def search(self):
         '''根据输入框pid搜索并插入数据'''
@@ -182,16 +191,22 @@ class QcWidget(QWidget, Ui_Qc):
             self.task.started.emit(len(select), "导出数据...")
             self.task.start()
 
-    def coa(self):
-        '''生成CoA'''
+    def coa_query(self):
+        '''CoA信息查询'''
         select = self.table.selections()
         if not select:
             QMessageBox.critical(self, "错误", "未选择数据")
         else:
-            task_dialog = taskDialog(self)
-            self.task = AsyncTask(task_dialog)
-            self.task.exception.connect(
-                lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
-            self.task.setCoro(self.task.generate_coa(select))
-            self.task.started.emit(len(select), "生成CoA...")
-            self.task.start()
+            pid_list = [i.pid for i in select]
+            samples = [find_by_pid(pid) for pid in pid_list]
+            # 弹出样品信息表
+
+    def coa_enter(self):
+        '''CoA生成确认'''
+        task_dialog = taskDialog(self)
+        self.task = AsyncTask(task_dialog)
+        self.task.exception.connect(
+            lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
+        self.task.setCoro(self.task.generate_coa())
+        self.task.started.emit(len(), "生成CoA...")
+        self.task.start()
