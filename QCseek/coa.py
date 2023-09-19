@@ -33,6 +33,22 @@ def find_by_pid(pid: str) -> tuple:
             return res[0]
 
 
+def coa_data(raw_data: tuple):
+    '''提取数据库原始数据中CoA字段'''
+    pid = raw_data[5]   # 蛋白编号
+    name = raw_data[6]  # 名称
+    prop = json.loads(raw_data[11])  # 蛋白样品属性
+    conc = prop.get('150')  # 浓度
+    cell_type = "CHO-S"  # 细胞系
+    h_subtype = "huIgG1"    # 重链亚型
+    l_subtype = "Kappa"  # 轻链亚型
+    mw = prop.get('64')  # 分子量
+    buffer = prop.get('67')  # 保存Buffer
+    lot = prop.get("58")  # 批号
+    cat = "CHA162"  # 货号
+    return (pid, name)
+
+
 @dataclass
 class CoAData:
     pid: str    # 蛋白编号
@@ -51,7 +67,7 @@ class CoAData:
 
     @classmethod
     def from_dbdata(cls, data: tuple):
-        '''将数据元组转换为CoAData'''
+        '''将数据元组转换为CoA文档字符'''
         prop = json.loads(data[11])  # 蛋白样品属性
         conc = prop.get('150') if prop.get('150') else "N/A"
         cell_type = "CHO-S"

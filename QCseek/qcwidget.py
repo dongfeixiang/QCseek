@@ -6,14 +6,14 @@ from PyQt6.QtWidgets import (
     QTableWidget, QHeaderView, QTableWidgetItem,
     QAbstractItemView, QStyle, QStyleOptionButton,
     QCheckBox, QWidget, QVBoxLayout, QMessageBox,
-    QDialog
 )
 
 from base.dialog import taskDialog
 from base.async_thread import AsyncThread
+from .dialog import QcresultDialog, SampleDialog
 from .qc_ui import Ui_Qc
 from .model import SDS, SEC, LAL
-from .coa import CoAData, find_by_pid
+from .coa import CoAData, find_by_pid, coa_data
 
 
 class QcRow:
@@ -112,13 +112,6 @@ class QcTable(QTableWidget):
                 item.setCheckState(Qt.CheckState.Unchecked)
 
 
-class SampleDialog(QDialog):
-    '''样品信息对话框'''
-
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent)
-
-
 class AsyncTask(AsyncThread):
     '''异步任务线程'''
 
@@ -134,8 +127,8 @@ class AsyncTask(AsyncThread):
             task = asyncio.create_task(self.export_row(k, v, folder))
             task.add_done_callback(lambda t: self.iter.emit())
             tasks.append(task)
-        # 设置超时1s
-        await asyncio.wait_for(asyncio.gather(*tasks), timeout=1.0)
+        # 设置超时300s
+        await asyncio.wait_for(asyncio.gather(*tasks), timeout=300.0)
 
     async def generate_coa(self, rows):
         await asyncio.sleep(5)
@@ -157,14 +150,40 @@ class QcWidget(QWidget, Ui_Qc):
     def search(self):
         '''根据输入框pid搜索并插入数据'''
         pid = self.searchEdit.text().strip()
-        sds = SDS.get_or_none(SDS.pid == pid)
-        sec = SEC.get_or_none(SEC.pid == pid)
-        lal = LAL.get_or_none(LAL.pid == pid)
-        self.table.addRow(QcRow(pid, sds, sec, lal))
+        sds_query = SDS.select().where(SDS.pid == pid)
+        sec_query = SEC.select().where(SEC.pid == pid)
+        lal_query = LAL.select().where(LAL.pid == pid)
+        if not any([sds_query, sec_query, lal_query]):
+            QMessageBox.critical(self, "错误", "暂无检测结果")
+        # 多个检测值
+        elif len(sds_query) > 1 or len(sec_query) > 1 or len(lal_query) > 1:
+            sds_list = [i for i in sds_query]
+            sec_list = [i for i in sec_query]
+            lal_list = [i for i in lal_query]
+            qc_dialog = QcresultDialog(self, pid, sds_list, sec_list, lal_list)
+            if qc_dialog.exec():
+                sds, sec, lal = qc_dialog.get_data()
+                self.table.addRow(QcRow(pid, sds, sec, lal))
+        # 单一检测值
+        else:
+            sds = sds_query.get() if sds_query else None
+            sec = sec_query.get() if sec_query else None
+            lal = lal_query.get() if lal_query else None
+            self.table.addRow(QcRow(pid, sds, sec, lal))
 
     def delete(self):
         '''删除选中行'''
-        print("delete")
+        rows = []
+        for i in range(self.table.rowCount()):
+            item = self.table.item(i, 0)
+            if item.checkState() == Qt.CheckState.Checked:
+                rows.append(i)
+        if not rows:
+            QMessageBox.critical(self, "错误", "未选择数据")
+        else:
+            for i in reversed(rows):
+                self.table.removeRow(i)
+                self.table.qcrows.pop(i)
 
     def export(self):
         '''导出选中行数据'''
@@ -198,8 +217,11 @@ class QcWidget(QWidget, Ui_Qc):
             QMessageBox.critical(self, "错误", "未选择数据")
         else:
             pid_list = [i.pid for i in select]
-            samples = [find_by_pid(pid) for pid in pid_list]
-            # 弹出样品信息表
+            db_data_list = [find_by_pid(pid) for pid in pid_list]
+            coa_data_list = [coa_data(i) for i in db_data_list]
+            sample_dialog = SampleDialog(self, coa_data_list)
+            if sample_dialog.exec():
+                coa_data_list = sample_dialog.get_data()
 
     def coa_enter(self):
         '''CoA生成确认'''

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Dialog</class>
- <widget class="QDialog" name="Dialog">
+ <class>QcresultDialog</class>
+ <widget class="QDialog" name="QcresultDialog">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -9,6 +9,12 @@
     <width>517</width>
     <height>213</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>517</width>
+    <height>0</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>Qc-results</string>
@@ -82,36 +88,6 @@
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="QRadioButton" name="radioButton">
-           <property name="text">
-            <string>&gt;95% (2020.01.01)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioButton_2">
-           <property name="text">
-            <string>&gt;95% (2020.01.01)</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="verticalSpacer">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>40</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
         </layout>
        </widget>
       </item>
@@ -131,33 +107,6 @@
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="QRadioButton" name="radioButton_3">
-           <property name="text">
-            <string>&gt;95% (2020.01.01)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioButton_4">
-           <property name="text">
-            <string>&gt;95% (2020.01.01)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="verticalSpacer_2">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>40</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
         </layout>
        </widget>
       </item>
@@ -176,33 +125,6 @@
             <string>LAL</string>
            </property>
           </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioButton_5">
-           <property name="text">
-            <string>&gt;95% (2020.01.01)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioButton_6">
-           <property name="text">
-            <string>&gt;95% (2020.01.01)</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="verticalSpacer_3">
-           <property name="orientation">
-            <enum>Qt::Vertical</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>40</height>
-            </size>
-           </property>
-          </spacer>
          </item>
         </layout>
        </widget>
@@ -262,7 +184,7 @@
   <connection>
    <sender>cancelButton</sender>
    <signal>clicked()</signal>
-   <receiver>Dialog</receiver>
+   <receiver>QcresultDialog</receiver>
    <slot>close()</slot>
    <hints>
     <hint type="sourcelabel">
@@ -276,4 +198,9 @@
    </hints>
   </connection>
  </connections>
+ <buttongroups>
+  <buttongroup name="sdsGroup"/>
+  <buttongroup name="secGroup"/>
+  <buttongroup name="lalGroup"/>
+ </buttongroups>
 </ui>
