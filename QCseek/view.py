@@ -101,8 +101,6 @@ async def create_ssl(path: str, name: str, model) -> list[BaseModel]:
             return updating
     except Exception as e:
         raise CreateError(qcfile, path, name, str(e))
-    finally:
-        print(path, name)
 
 
 async def attach_pdf(path: str, name: str):
@@ -133,7 +131,24 @@ def backup():
     shutil.copy("sqlite.db", "sqlite_bak.db")
 
 
-class AsyncTask(AsyncThread):
+async def extract_sds(sds: SDS, ppt_path):
+    '''提取SDS图片'''
+    async with PPTX(ppt_path) as ppt:
+        img = await ppt.get_image_by_name(sds.pic)
+        img, img_gray = pre_cut(img, cut_bg=True)
+        lines = gel_crop(img_gray)
+        non_reduced = img[:, lines[sds.non_reduced_lane-1]:lines[sds.non_reduced_lane]]
+        marker = img[:, lines[7]:lines[8]]
+        reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
+        sds_img = np.hstack([non_reduced, marker, reduced])
+        sds_img = cv2.resize(sds_img, (200, 720))
+        temp = cv2.imread("resource/marker.png")
+        temp[40:, 60:] = sds_img
+        cv2.imwrite(f"out/{sds.pid}/sds.png", temp)
+        return temp
+
+
+class ViewTask(AsyncThread):
 
     async def batch_create_ssl(self, file_list, model):
         '''从文件列表批量创建SDS/SEC/LAL'''
@@ -196,6 +211,7 @@ class AsyncTask(AsyncThread):
         sds_files = scan(SDS_FOLDER)
         sec_files = scan(SEC_FOLDER)
         lal_files = scan(LAL_FOLDER)
+        self.started.emit(len(sds_files)+len(sec_files)+len(lal_files), "更新数据库...")
         errors = await asyncio.gather(
             self.batch_create_ssl(sds_files, SDS),
             self.batch_create_ssl(sec_files, SEC),
@@ -249,22 +265,15 @@ class AsyncTask(AsyncThread):
         with db.atomic():
             for d in deleting:
                 model.get(model.id == d).delete_instance()
-
-    async def extract_sds(self, sds: SDS):
-        '''提取SDS图片'''
-        async with PPTX(sds.source.shortpathname) as ppt:
-            img = await ppt.get_image_by_name(sds.pic)
-            img, img_gray = pre_cut(img, cut_bg=True)
-            lines = gel_crop(img_gray)
-            non_reduced = img[:, lines[sds.non_reduced_lane-1]:lines[sds.non_reduced_lane]]
-            marker = img[:, lines[7]:lines[8]]
-            reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
-            sds_img = np.hstack([non_reduced, marker, reduced])
-            sds_img = cv2.resize(sds_img, (200, 720))
-            temp = cv2.imread("resource/marker.png")
-            temp[40:, 60:] = sds_img
-            return temp
-
+    
+    async def extract_many_sds(self, sds_list):
+        tasks = []
+        for sds, ppt_path in sds_list:
+            task = asyncio.create_task(extract_sds(sds, ppt_path))
+            task.add_done_callback(lambda t: self.iter.emit())
+        tasks.append(task)
+        await asyncio.gather(*tasks)
+        
     async def extract_sec(self, sec: SEC):
         '''提取SEC图片'''
         if sec.attach:

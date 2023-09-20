@@ -85,7 +85,6 @@ def blank_check(img: np.ndarray, edges: list):
     _, img_n = cv2.threshold(img, 50, 255, cv2.THRESH_BINARY)
     col = np.array(img_n)
     col_mean = col.mean(axis=0)
-
     # 计算临界零点
     zeros = []
     for i in range(1, len(col_mean)-1):
@@ -103,13 +102,11 @@ def blank_check(img: np.ndarray, edges: list):
         else:
             if (zeros[i+1]-zeros[i]) > len(img)/30 and (zeros[i]-zeros[i-1]) > len(img)/30:
                 blanks.append(zeros[i])
-
     # 查找最近边界并校正
     for i, e in enumerate(edges):
         dis = [abs(e-b) for b in blanks]
         if min(dis) < len(img[0])/30:
             edges[i] = blanks[dis.index(min(dis))]
-
     # plt.plot(np.arange(len(col_mean)), col_mean)
     # plt.plot(blanks, col_mean[blanks], "x")
     # plt.show()

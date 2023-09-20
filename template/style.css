@@ -85,6 +85,10 @@ table {
     margin: 10px 10px;
 }
 
+table td:first-child {
+    width: 160px;
+}
+
 td.title {
     font-weight: bold;
     width: 200px;

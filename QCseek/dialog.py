@@ -1,4 +1,7 @@
-from PyQt6.QtWidgets import QDialog, QRadioButton, QButtonGroup, QSpacerItem, QSizePolicy, QTableWidgetItem
+from PyQt6.QtWidgets import (
+    QDialog, QRadioButton, QButtonGroup, QSpacerItem,
+    QSizePolicy, QTableWidgetItem, QHeaderView, QMessageBox
+)
 
 from .qcresultDialog_ui import Ui_QcresultDialog
 from .sampleDialog_ui import Ui_SampleDialog
@@ -110,12 +113,13 @@ class SampleDialog(QDialog, Ui_SampleDialog):
     def __init__(self, parent=None, data_list: list[tuple] = []) -> None:
         super().__init__(parent)
         self.setupUi(self)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         for i, data in enumerate(data_list):
             self.table.insertRow(i)
             for j, prop in enumerate(data):
-                self.table.setItem(i, j, QTableWidgetItem(prop))
+                self.table.setItem(i, j, QTableWidgetItem(str(prop)))
         # 信号-槽连接
-        self.okButton.clicked.connect(self.accept)
+        self.okButton.clicked.connect(self.enter_data)
 
     def get_data(self):
         return [tuple([
@@ -123,3 +127,14 @@ class SampleDialog(QDialog, Ui_SampleDialog):
             for j in range(self.table.columnCount())])
             for i in range(self.table.rowCount())
         ]
+    
+    def check_blank(self):
+        data_list = self.get_data()
+        data_unit = [j for i in data_list for j in i]
+        return all(data_unit)
+    
+    def enter_data(self):
+        if self.check_blank():
+            self.accept()
+        else:
+            QMessageBox.critical(self, "错误", "数据缺失")

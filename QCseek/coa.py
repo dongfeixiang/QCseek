@@ -38,15 +38,17 @@ def coa_data(raw_data: tuple):
     pid = raw_data[5]   # 蛋白编号
     name = raw_data[6]  # 名称
     prop = json.loads(raw_data[11])  # 蛋白样品属性
-    conc = prop.get('150')  # 浓度
-    cell_type = "CHO-S"  # 细胞系
-    h_subtype = "huIgG1"    # 重链亚型
-    l_subtype = "Kappa"  # 轻链亚型
-    mw = prop.get('64')  # 分子量
-    buffer = prop.get('67')  # 保存Buffer
+    conc = prop.get("150")  # 浓度
+    cell_type = prop.get("55")  # 细胞系
+    h_subtype = prop.get("62")    # 重链亚型
+    l_subtype = prop.get("63")  # 轻链亚型
+    mw = prop.get("64")  # 分子量
+    pi = prop.get("65")
+    exco = prop.get("66")
+    buffer = prop.get("67")  # 保存Buffer
     lot = prop.get("58")  # 批号
-    cat = "CHA162"  # 货号
-    return (pid, name)
+    cat = prop.get("224")  # 货号
+    return (cat, pid, name, h_subtype, l_subtype, mw, pi, exco, conc, buffer, lot, cell_type)
 
 
 @dataclass
@@ -68,18 +70,19 @@ class CoAData:
     @classmethod
     def from_dbdata(cls, data: tuple):
         '''将数据元组转换为CoA文档字符'''
-        prop = json.loads(data[11])  # 蛋白样品属性
-        conc = prop.get('150') if prop.get('150') else "N/A"
-        cell_type = "CHO-S"
-        h_subtype = "huIgG1"
-        l_subtype = "Kappa"
-        mw = prop.get('64') if prop.get('64') else "N/A"
-        buffer = prop.get('67') if prop.get('67') else "N/A"
-        cat = "CHA162"
-        lot = prop.get("58") if prop.get("58") else "N/A"
+        conc = data[8]
+        cell_type = "CHO"# data[11]
+        h_subtype = data[3]
+        l_subtype = data[4]
+        mw = data[5]
+        pi = data[6]
+        exco = data[7]
+        buffer = data[9].replace("，", ", ")
+        cat = data[0]
+        lot = data[10]
         return cls(
-            pid=f"Lot. No.: {data[5]}",
-            name=data[6],
+            pid=f"Lot. No.: {data[1]}",
+            name=data[2],
             conc=f"{conc} mg/mL, verified by UV280",
             characterization=f"It is expressed from {cell_type}. The heavy chain type is {h_subtype}, and the light chain type is {l_subtype}. It has a predicted MW of {mw} kDa.",
             formulation=f"Supplied as a 0.22 &mu;m filtered solution in {buffer}",
@@ -101,7 +104,7 @@ class CoAData:
 
     def toHtml(self):
         env = Environment(
-            loader=FileSystemLoader("D:\Document\Code\QCseek")
+            loader=FileSystemLoader("F:\code\QCseek")
         )
         temp = env.get_template("template/template.html")
         return temp.render(data=self)

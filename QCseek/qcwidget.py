@@ -1,3 +1,4 @@
+import os
 import shutil
 import asyncio
 
@@ -14,6 +15,7 @@ from .dialog import QcresultDialog, SampleDialog
 from .qc_ui import Ui_Qc
 from .model import SDS, SEC, LAL
 from .coa import CoAData, find_by_pid, coa_data
+from .view import ViewTask
 
 
 class QcRow:
@@ -142,10 +144,19 @@ class QcWidget(QWidget, Ui_Qc):
         self.table = QcTable(self.frame_3)
         self.horizontalLayout_4.addWidget(self.table)
         # 信号-槽连接
+        self.updateButton.clicked.connect(self.update_db)
         self.searchButton.clicked.connect(self.search)
         self.exportButton.clicked.connect(self.export)
         self.deleteButton.clicked.connect(self.delete)
         self.coaButton.clicked.connect(self.coa_query)
+
+    def update_db(self):
+        task_dialog = taskDialog(self)
+        self.task = ViewTask(task_dialog)
+        self.task.exception.connect(
+            lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
+        self.task.setCoro(self.task.scan_update())
+        self.task.start()
 
     def search(self):
         '''根据输入框pid搜索并插入数据'''
@@ -221,14 +232,23 @@ class QcWidget(QWidget, Ui_Qc):
             coa_data_list = [coa_data(i) for i in db_data_list]
             sample_dialog = SampleDialog(self, coa_data_list)
             if sample_dialog.exec():
+                # 提取图片线程
+                task_dialog = taskDialog(self)
+                self.task = ViewTask(task_dialog)
+                self.task.exception.connect(
+                    lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
+                sds_list = [[i.sds, i.sds.source.shortpathname] for i in select]
+                self.task.setCoro(self.task.extract_many_sds(sds_list))
+                self.task.started.emit(len(select), "生成CoA...")
+                self.task.start()
                 coa_data_list = sample_dialog.get_data()
-
-    def coa_enter(self):
-        '''CoA生成确认'''
-        task_dialog = taskDialog(self)
-        self.task = AsyncTask(task_dialog)
-        self.task.exception.connect(
-            lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
-        self.task.setCoro(self.task.generate_coa())
-        self.task.started.emit(len(), "生成CoA...")
-        self.task.start()
+                coa_list = [CoAData.from_dbdata(i) for i in coa_data_list]
+                for coa, row in zip(coa_list, select):
+                    coa.conclude_sds(row.sds)
+                    coa.conclude_sec(row.sec)
+                    # coa.conclude_elisa()
+                    html = coa.toHtml()
+                    if not os.path.exists(f"out/{row.pid}"):
+                        os.mkdir(f"out/{row.pid}")
+                    with open(f"out/{row.pid}/out.html", "w", encoding="utf-8") as f:
+                        f.write(html)

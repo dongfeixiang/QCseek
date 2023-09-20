@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="template/style.css">
+    <link rel="stylesheet" href="../../template/style.css">
     <title>CoA模板</title>
 </head>
 <body>
@@ -17,7 +17,7 @@
                     {% endif %}
                     <span>{{ data.pid }}</span>
                 </div>
-                <img src="template/logo.png" alt="">
+                <img src="../../template/logo.png" alt="">
             </div>
             <div class="space">
                 <span>Description</span>
@@ -66,7 +66,7 @@
                 <div class="sds">
                     <h4>SDS</h4>
                     <div class="sds-data">
-                        <img src="logo.png" alt="">
+                        <img src="sds.png" alt="">
                         <p>{{ data.sds_conclusion }}</p>
                     </div>
                 </div>
@@ -74,7 +74,7 @@
                 {% if data.sec_conclusion -%}
                 <div class="sec">
                     <h4>SEC</h4>
-                    <img src="logo.png" alt="">
+                    <img src="sec.png" alt="">
                     <p>{{ data.sec_conclusion }}</p>
                 </div>
                 {% endif %}
