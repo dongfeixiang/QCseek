@@ -17,6 +17,16 @@ class Ui_QcresultDialog(object):
         QcresultDialog.setStyleSheet("QFrame#content {\n"
 "    background-color: rgb(255, 255, 255);\n"
 "    border-radius: 3px;\n"
+"}\n"
+"QLabel#pidLabel {\n"
+"    font-size: 12pt;\n"
+"    font-weight: bold;\n"
+"    color: rgb(33, 34, 27);\n"
+"}\n"
+"#label_sds, #label_sec, #label_lal {\n"
+"    font-size: 10pt;\n"
+"    font-weight: bold;\n"
+"    color: rgb(74, 74, 74);\n"
 "}")
         self.verticalLayout = QtWidgets.QVBoxLayout(QcresultDialog)
         self.verticalLayout.setSpacing(0)
@@ -48,9 +58,9 @@ class Ui_QcresultDialog(object):
         self.frame_2.setObjectName("frame_2")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.frame_2)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.label_2 = QtWidgets.QLabel(parent=self.frame_2)
-        self.label_2.setObjectName("label_2")
-        self.verticalLayout_2.addWidget(self.label_2)
+        self.label_sds = QtWidgets.QLabel(parent=self.frame_2)
+        self.label_sds.setObjectName("label_sds")
+        self.verticalLayout_2.addWidget(self.label_sds)
         self.horizontalLayout.addWidget(self.frame_2)
         self.frame_3 = QtWidgets.QFrame(parent=self.content)
         self.frame_3.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
@@ -58,9 +68,9 @@ class Ui_QcresultDialog(object):
         self.frame_3.setObjectName("frame_3")
         self.verticalLayout_3 = QtWidgets.QVBoxLayout(self.frame_3)
         self.verticalLayout_3.setObjectName("verticalLayout_3")
-        self.label_3 = QtWidgets.QLabel(parent=self.frame_3)
-        self.label_3.setObjectName("label_3")
-        self.verticalLayout_3.addWidget(self.label_3)
+        self.label_sec = QtWidgets.QLabel(parent=self.frame_3)
+        self.label_sec.setObjectName("label_sec")
+        self.verticalLayout_3.addWidget(self.label_sec)
         self.horizontalLayout.addWidget(self.frame_3)
         self.frame_4 = QtWidgets.QFrame(parent=self.content)
         self.frame_4.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
@@ -68,9 +78,9 @@ class Ui_QcresultDialog(object):
         self.frame_4.setObjectName("frame_4")
         self.verticalLayout_4 = QtWidgets.QVBoxLayout(self.frame_4)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
-        self.label_4 = QtWidgets.QLabel(parent=self.frame_4)
-        self.label_4.setObjectName("label_4")
-        self.verticalLayout_4.addWidget(self.label_4)
+        self.label_lal = QtWidgets.QLabel(parent=self.frame_4)
+        self.label_lal.setObjectName("label_lal")
+        self.verticalLayout_4.addWidget(self.label_lal)
         self.horizontalLayout.addWidget(self.frame_4)
         self.verticalLayout.addWidget(self.content)
         self.frame_5 = QtWidgets.QFrame(parent=QcresultDialog)
@@ -102,8 +112,8 @@ class Ui_QcresultDialog(object):
         _translate = QtCore.QCoreApplication.translate
         QcresultDialog.setWindowTitle(_translate("QcresultDialog", "Qc-results"))
         self.pidLabel.setText(_translate("QcresultDialog", "P00001"))
-        self.label_2.setText(_translate("QcresultDialog", "SDS"))
-        self.label_3.setText(_translate("QcresultDialog", "SEC"))
-        self.label_4.setText(_translate("QcresultDialog", "LAL"))
+        self.label_sds.setText(_translate("QcresultDialog", "SDS"))
+        self.label_sec.setText(_translate("QcresultDialog", "SEC"))
+        self.label_lal.setText(_translate("QcresultDialog", "LAL"))
         self.okButton.setText(_translate("QcresultDialog", "确定"))
         self.cancelButton.setText(_translate("QcresultDialog", "取消"))

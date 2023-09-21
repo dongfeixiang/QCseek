@@ -58,6 +58,14 @@ class Slide:
         ]
         return image_list
 
+    def get_index(self):
+        '''获取标题序号'''
+        title = self._bs.find(".//p:ph[@type='title']/../../..", self.ns)
+        try:
+            return int(title.text)
+        except:
+            return None
+
 
 class PPTX:
     '''
@@ -106,25 +114,18 @@ class PPTX:
         return sum(tables, [])
 
     async def get_image_by_name(self, xref: str):
-        '''读取二进制图片数据'''
+        '''根据名称索引读取二进制图片数据'''
         fp = await self.open(xref)
         return cv2.imdecode(np.frombuffer(fp.read(), dtype=np.uint8), 1)
 
     async def get_image_by_index(self, index: int):
-        # bs = BeautifulSoup(slide, features="xml")
-        # title = bs.find("p:ph", type="title")
-        # if title and title.parent.parent.parent.text == pic:
-        #     # 提取图片
-        #     rel = f"ppt/slides/_rels/{s.split('/')[-1]}.rels"
-        #     with ppt.open(rel) as slide_rel:
-        #         rel_bs = BeautifulSoup(slide_rel, features="xml")
-        #         relationships = rel_bs.find_all("Relationship")
-        #         for re in relationships:
-        #             if "media" in re["Target"]:
-        #                 img = re["Target"].replace("..", "ppt")
-        #         ppt.extract(img, f"{sec.pid}/SEC")
-        #         img = f"{sec.pid}/SEC/{img}"
-        return
+        '''根据序号索引读取二进制图片数据'''
+        slides = await self.slides()
+        for i in slides:
+            if i.get_index() and i.get_index() == index:
+                images = i.get_image_names()
+                img = await self.get_image_by_name(images[0])
+                return img
 
 
 # async def open_ppt():

@@ -13,7 +13,7 @@ class Ui_Qc(object):
     def setupUi(self, Qc):
         Qc.setObjectName("Qc")
         Qc.resize(517, 374)
-        Qc.setStyleSheet("QLabel {\n"
+        Qc.setStyleSheet("QLabel#title {\n"
 "    color: rgb(85, 85, 85);\n"
 "    font-size: 18pt;\n"
 "    font-weight: bold;\n"
@@ -26,8 +26,16 @@ class Ui_Qc(object):
 "QPushButton {\n"
 "    background-color: rgb(180, 180, 180);\n"
 "    border-radius:2px;\n"
+"    padding: 3px;\n"
 "}\n"
 "QPushButton:hover {\n"
+"    color: rgb(255, 255, 255);\n"
+"    background-color: rgb(120, 120, 120);\n"
+"}\n"
+"#updateButton, #cleanButton, #folderButton {\n"
+"    background-color: rgba(255, 255, 255, 0);\n"
+"}\n"
+"#updateButton:hover, #cleanButton:hover, #folderButton:hover {\n"
 "    color: rgb(255, 255, 255);\n"
 "    background-color: rgb(120, 120, 120);\n"
 "}")
@@ -59,12 +67,17 @@ class Ui_Qc(object):
         spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum)
         self.horizontalLayout_2.addItem(spacerItem)
         self.updateButton = QtWidgets.QPushButton(parent=self.frame_4)
+        self.updateButton.setToolTip("")
+        self.updateButton.setToolTipDuration(-1)
+        self.updateButton.setText("")
         self.updateButton.setObjectName("updateButton")
         self.horizontalLayout_2.addWidget(self.updateButton)
         self.cleanButton = QtWidgets.QPushButton(parent=self.frame_4)
+        self.cleanButton.setText("")
         self.cleanButton.setObjectName("cleanButton")
         self.horizontalLayout_2.addWidget(self.cleanButton)
         self.folderButton = QtWidgets.QPushButton(parent=self.frame_4)
+        self.folderButton.setText("")
         self.folderButton.setObjectName("folderButton")
         self.horizontalLayout_2.addWidget(self.folderButton)
         self.horizontalLayout.addWidget(self.frame_4)
@@ -114,6 +127,8 @@ class Ui_Qc(object):
         sizePolicy.setVerticalStretch(8)
         sizePolicy.setHeightForWidth(self.frame_3.sizePolicy().hasHeightForWidth())
         self.frame_3.setSizePolicy(sizePolicy)
+        self.frame_3.setToolTip("")
+        self.frame_3.setToolTipDuration(1)
         self.frame_3.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
         self.frame_3.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
         self.frame_3.setObjectName("frame_3")
@@ -126,9 +141,6 @@ class Ui_Qc(object):
         _translate = QtCore.QCoreApplication.translate
         Qc.setWindowTitle(_translate("Qc", "QCseek"))
         self.title.setText(_translate("Qc", "我的数据"))
-        self.updateButton.setText(_translate("Qc", "UP"))
-        self.cleanButton.setText(_translate("Qc", "CL"))
-        self.folderButton.setText(_translate("Qc", "DB"))
         self.searchEdit.setPlaceholderText(_translate("Qc", "蛋白编号"))
         self.searchButton.setText(_translate("Qc", "搜索"))
         self.deleteButton.setText(_translate("Qc", "删除"))

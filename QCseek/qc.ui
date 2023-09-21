@@ -14,7 +14,7 @@
    <string>QCseek</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">QLabel {
+   <string notr="true">QLabel#title {
 	color: rgb(85, 85, 85);
 	font-size: 18pt;
 	font-weight: bold;
@@ -27,8 +27,16 @@ QLineEdit {
 QPushButton {
 	background-color: rgb(180, 180, 180);
 	border-radius:2px;
+	padding: 3px;
 }
 QPushButton:hover {
+	color: rgb(255, 255, 255);
+	background-color: rgb(120, 120, 120);
+}
+#updateButton, #cleanButton, #folderButton {
+	background-color: rgba(255, 255, 255, 0);
+}
+#updateButton:hover, #cleanButton:hover, #folderButton:hover {
 	color: rgb(255, 255, 255);
 	background-color: rgb(120, 120, 120);
 }</string>
@@ -101,22 +109,28 @@ QPushButton:hover {
          </item>
          <item>
           <widget class="QPushButton" name="updateButton">
+           <property name="toolTip">
+            <string/>
+           </property>
+           <property name="toolTipDuration">
+            <number>-1</number>
+           </property>
            <property name="text">
-            <string>UP</string>
+            <string/>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="cleanButton">
            <property name="text">
-            <string>CL</string>
+            <string/>
            </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="folderButton">
            <property name="text">
-            <string>DB</string>
+            <string/>
            </property>
           </widget>
          </item>
@@ -231,6 +245,12 @@ QPushButton:hover {
        <horstretch>0</horstretch>
        <verstretch>8</verstretch>
       </sizepolicy>
+     </property>
+     <property name="toolTip">
+      <string/>
+     </property>
+     <property name="toolTipDuration">
+      <number>1</number>
      </property>
      <property name="frameShape">
       <enum>QFrame::StyledPanel</enum>

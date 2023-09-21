@@ -1,12 +1,13 @@
 from PyQt6.QtWidgets import (
     QDialog, QRadioButton, QButtonGroup, QSpacerItem,
-    QSizePolicy, QTableWidgetItem, QHeaderView, QMessageBox
+    QSizePolicy, QTableWidgetItem, QHeaderView, QMessageBox,
+    QFileDialog
 )
 
 from .qcresultDialog_ui import Ui_QcresultDialog
 from .sampleDialog_ui import Ui_SampleDialog
+from .sourceDialog_ui import Ui_sourceDialog
 from .model import SDS, SEC, LAL
-from .coa import CoAData
 
 
 class SdsRadioButton(QRadioButton):
@@ -113,7 +114,8 @@ class SampleDialog(QDialog, Ui_SampleDialog):
     def __init__(self, parent=None, data_list: list[tuple] = []) -> None:
         super().__init__(parent)
         self.setupUi(self)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents)
         for i, data in enumerate(data_list):
             self.table.insertRow(i)
             for j, prop in enumerate(data):
@@ -127,14 +129,33 @@ class SampleDialog(QDialog, Ui_SampleDialog):
             for j in range(self.table.columnCount())])
             for i in range(self.table.rowCount())
         ]
-    
+
     def check_blank(self):
         data_list = self.get_data()
         data_unit = [j for i in data_list for j in i]
         return all(data_unit)
-    
+
     def enter_data(self):
         if self.check_blank():
             self.accept()
         else:
             QMessageBox.critical(self, "错误", "数据缺失")
+
+
+class SourceDialog(QDialog, Ui_sourceDialog):
+    '''数据源对话框'''
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
+        self.lineEdit.setCursorPosition(0)
+        # 信号-槽连接
+        self.addButton.clicked.connect(self.add_source)
+        self.browserButton.clicked.connect(self.select_source)
+
+    def add_source(self):
+        QMessageBox.information(self, "提示", "暂未开发")
+
+    def select_source(self):
+        folder = QFileDialog.getExistingDirectory()
+        self.lineEdit_2.setText(folder)

@@ -11,7 +11,6 @@ import pandas as pd
 
 from .sds_reader import pre_cut, gel_crop
 from .model import *
-from .coa import CoAData, find_by_pid
 
 # F盘文件夹路径
 BASE_DIR = Path(
@@ -129,6 +128,7 @@ def backup():
     '''备份数据库'''
     shutil.copy("sqlite.db", "sqlite_bak.db")
 
+
 async def batch_create_ssl(file_list, model, dialog):
     '''从文件列表批量创建SDS/SEC/LAL'''
     tasks = []
@@ -156,6 +156,7 @@ async def batch_create_ssl(file_list, model, dialog):
         for i in failed:
             i.delete_instance()
     return errors
+
 
 async def batch_attach_pdf(file_list, dialog):
     '''从文件列表批量添加SEC模型attach'''
@@ -185,12 +186,14 @@ async def batch_attach_pdf(file_list, dialog):
             i.delete_instance()
     return errors
 
+
 async def scan_update(dialog):
     '''扫描文件夹并更新数据库'''
     sds_files = scan(SDS_FOLDER)
     sec_files = scan(SEC_FOLDER)
     lal_files = scan(LAL_FOLDER)
-    dialog.started.emit(len(sds_files)+len(sec_files)+len(lal_files), "更新数据库...")
+    dialog.started.emit(len(sds_files)+len(sec_files) +
+                        len(lal_files), "更新数据库...")
     errors = await asyncio.gather(
         batch_create_ssl(sds_files, SDS, dialog),
         batch_create_ssl(sec_files, SEC, dialog),
@@ -203,6 +206,7 @@ async def scan_update(dialog):
         errors,
         columns=["path", "name", "error"]
     ).to_excel("out/errors.xlsx", index=False)
+
 
 async def clean(model):
     '''清洗数据库，删除重复项'''
@@ -244,8 +248,9 @@ async def clean(model):
     with db.atomic():
         for d in deleting:
             model.get(model.id == d).delete_instance()
-    
-async def extract_sds(sds: SDS, folder:str):
+
+
+async def extract_sds(sds: SDS, folder: str):
     '''提取SDS图片'''
     async with PPTX(sds.source.shortpathname) as ppt:
         img = await ppt.get_image_by_name(sds.pic)
@@ -261,28 +266,30 @@ async def extract_sds(sds: SDS, folder:str):
         cv2.imwrite(f"{folder}/sds.png", temp)
         return temp
 
-async def extract_sec(sec: SEC, folder:str):
+
+async def extract_sec(sec: SEC, folder: str):
     '''提取SEC图片'''
-    return
     if sec.attach:
         # 提取PDF
         try:
             # 第一种SEC图, 可直接读取PDF
-            pdf = fitz.open(sec.attach.shortpathname)
+            pdf = await asyncio.to_thread(fitz.open, sec.attach.shortpathname)
             page = pdf[sec.pic_num-1]
             imgs = page.get_images()
             pix = fitz.Pixmap(pdf, imgs[1][0])
+            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+                pix.height, pix.width, pix.n)
         except IndexError:
             # 第二种SEC图, 转化后裁剪
             pix = page.get_pixmap(dpi=300)
-            # 裁剪
-            # pix[1000:1900, :]
-            # cut(pix)
-        finally:
-            # 转换Pixmap为ndarray
-            img_array = pix
-            return img_array
+            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+                pix.height, pix.width, pix.n)
+            img = img[1000:1900, :]
+        except Exception as e:
+            raise e
     else:
         # 提取PPT
         async with PPTX(sec.source.shortpathname) as ppt:
-            return await ppt.get_image_by_index(sec.pic_num)
+            img = await ppt.get_image_by_index(sec.pic_num)
+    cv2.imwrite(f"{folder}/sec.png", img)
+    return img

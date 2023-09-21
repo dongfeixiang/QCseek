@@ -23,6 +23,16 @@
    <string notr="true">QFrame#content {
 	background-color: rgb(255, 255, 255);
 	border-radius: 3px;
+}
+QLabel#pidLabel {
+	font-size: 12pt;
+	font-weight: bold;
+	color: rgb(33, 34, 27);
+}
+#label_sds, #label_sec, #label_lal {
+	font-size: 10pt;
+	font-weight: bold;
+	color: rgb(74, 74, 74);
 }</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -82,7 +92,7 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_2">
          <item>
-          <widget class="QLabel" name="label_2">
+          <widget class="QLabel" name="label_sds">
            <property name="text">
             <string>SDS</string>
            </property>
@@ -101,7 +111,7 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_3">
          <item>
-          <widget class="QLabel" name="label_3">
+          <widget class="QLabel" name="label_sec">
            <property name="text">
             <string>SEC</string>
            </property>
@@ -120,7 +130,7 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_4">
          <item>
-          <widget class="QLabel" name="label_4">
+          <widget class="QLabel" name="label_lal">
            <property name="text">
             <string>LAL</string>
            </property>
@@ -198,9 +208,4 @@
    </hints>
   </connection>
  </connections>
- <buttongroups>
-  <buttongroup name="sdsGroup"/>
-  <buttongroup name="secGroup"/>
-  <buttongroup name="lalGroup"/>
- </buttongroups>
 </ui>

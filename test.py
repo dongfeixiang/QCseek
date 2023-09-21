@@ -1,11 +1,10 @@
 import time
 import asyncio
-import os
 import typing
 import winreg
-from threading import Thread
-import threading
-from PyQt6.QtCore import QObject, QThread
+from PyQt6 import QtCore
+from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout
+from qasync import QApplication, QEventLoop, asyncSlot
 
 # from QCseek.model import SDS, SEC, LAL
 # from QCseek.view import backup, scan_update, clean, extract_sds
@@ -28,46 +27,35 @@ def get_chrome_path():
     return full_file_name
 
 
-class TaskThread(QThread):
+class MyWin(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        # self.finished.connect(lambda: print("completed"))
+        lay = QVBoxLayout()
+        self.setLayout(lay)
+        btn1 = QPushButton("异步", self)
+        btn2 = QPushButton("同步", self)
+        lay.addWidget(btn1)
+        lay.addWidget(btn2)
+        btn1.clicked.connect(self.async_task)
+        btn2.clicked.connect(self.sync_task)
 
-    def run(self):
-        self.finished.connect(lambda: print("completed"))
-        try:
-            asyncio.run(self.coro())
-        except Exception as e:
-            print(type(e))
+    def sync_task(self):
+        for i in range(5):
+            time.sleep(1)
+            print(i)
 
-    async def coro(self):
-        await asyncio.wait_for(asyncio.sleep(10), timeout=3)
+    @asyncSlot()
+    async def async_task(self):
+        for i in range(5):
+            await asyncio.sleep(1)
+            print(i)
 
-
-async def main():
-    # Wait for at most 1 second
-    t = 1
 
 if __name__ == "__main__":
-
-    t = TaskThread()
-    # t.finished.connect(lambda: print("completed"))
-    t.start()
-    input("quit?")
-    print(threading.enumerate())
-
-    # t1 = time.perf_counter()
-    # sds = SDS.get(SDS.id==10004)
-    # asyncio.run(extract_sds(sds))
-    # print(time.perf_counter()-t1)
-
-    # data = find_by_pid("P01001")
-    # coa = CoAData.from_dbdata(data)
-    # coa.conclude_sds(">95")
-    # coa.conclude_sec(">95")
-    # coa.conclude_elisa("0.1ug/ml")
-    # html = coa.toHtml()
-    # with open("out.html", "w", encoding="utf-8") as f:
-    #     f.write(html)
-
-    # print(get_chrome_path())
+    app = QApplication([])
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
+    win = MyWin()
+    win.show()
+    with loop:
+        loop.run_forever()
