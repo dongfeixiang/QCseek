@@ -33,7 +33,7 @@ def find_by_pid(pid: str) -> tuple:
             return res[0]
 
 
-def coa_data(raw_data: tuple):
+def filter_coa_data(raw_data: tuple):
     '''提取数据库原始数据中CoA字段'''
     pid = raw_data[5]   # 蛋白编号
     name = raw_data[6]  # 名称

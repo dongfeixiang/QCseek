@@ -1,21 +1,24 @@
 import os
 import shutil
 import asyncio
+import typing
+from PyQt6.QtGui import QKeyEvent
 
 from PyQt6.QtCore import Qt, pyqtSignal, QRect
 from PyQt6.QtWidgets import (
     QTableWidget, QHeaderView, QTableWidgetItem,
     QAbstractItemView, QStyle, QStyleOptionButton,
     QCheckBox, QWidget, QVBoxLayout, QMessageBox,
+    QFileDialog
 )
+from qasync import asyncSlot
 
-from base.dialog import taskDialog
-from base.async_thread import AsyncThread
+from base.dialog import asyncDialog
 from .dialog import QcresultDialog, SampleDialog
 from .qc_ui import Ui_Qc
 from .model import SDS, SEC, LAL
-from .coa import CoAData, find_by_pid, coa_data
-from .view import ViewTask
+from .coa import CoAData, find_by_pid, filter_coa_data
+from .view import scan_update, extract_sds, extract_sec
 
 
 class QcRow:
@@ -113,29 +116,6 @@ class QcTable(QTableWidget):
             else:
                 item.setCheckState(Qt.CheckState.Unchecked)
 
-
-class AsyncTask(AsyncThread):
-    '''异步任务线程'''
-
-    async def export_row(self, pid: str, files: list, folder: str):
-        # await asyncio.sleep(10)
-        tasks = [asyncio.to_thread(shutil.copy, i, folder) for i in files]
-        await asyncio.gather(*tasks)
-
-    async def export(self, file_dict: dict[str:list]):
-        folder = ""
-        tasks = []
-        for k, v in file_dict.items():
-            task = asyncio.create_task(self.export_row(k, v, folder))
-            task.add_done_callback(lambda t: self.iter.emit())
-            tasks.append(task)
-        # 设置超时300s
-        await asyncio.wait_for(asyncio.gather(*tasks), timeout=300.0)
-
-    async def generate_coa(self, rows):
-        await asyncio.sleep(5)
-
-
 class QcWidget(QWidget, Ui_Qc):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -145,18 +125,32 @@ class QcWidget(QWidget, Ui_Qc):
         self.horizontalLayout_4.addWidget(self.table)
         # 信号-槽连接
         self.updateButton.clicked.connect(self.update_db)
+        self.cleanButton.clicked.connect(self.clean_db)
         self.searchButton.clicked.connect(self.search)
-        self.exportButton.clicked.connect(self.export)
+        self.exportButton.clicked.connect(self.export_rows)
         self.deleteButton.clicked.connect(self.delete)
-        self.coaButton.clicked.connect(self.coa_query)
+        self.coaButton.clicked.connect(self.coa_generate)
+    
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        '''键盘事件'''
+        if event.key() == Qt.Key.Key_Return:
+            self.search()
 
-    def update_db(self):
-        task_dialog = taskDialog(self)
-        self.task = ViewTask(task_dialog)
-        self.task.exception.connect(
-            lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
-        self.task.setCoro(self.task.scan_update())
-        self.task.start()
+    @asyncSlot()
+    async def update_db(self):
+        '''数据库更新'''
+        task_dialog = asyncDialog(self)
+        try:
+            await scan_update(task_dialog)
+            task_dialog.finished.emit()
+        except Exception as e:
+            task_dialog.finished.emit()
+            QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})")
+    
+    @asyncSlot()
+    async def clean_db(self):
+        '''数据库清洗--异步peewee'''
+        # TODO
 
     def search(self):
         '''根据输入框pid搜索并插入数据'''
@@ -196,32 +190,63 @@ class QcWidget(QWidget, Ui_Qc):
                 self.table.removeRow(i)
                 self.table.qcrows.pop(i)
 
-    def export(self):
+    async def export_row(self, row: QcRow, folder: str):
+        '''导出单行数据'''
+        files = []
+        if row.sds:
+            files.append(row.sds.source.shortpathname)
+        if row.sec:
+            files.append(row.sec.source.shortpathname)
+            if row.sec.attach:
+                files.append(row.sec.attach.shortpathname)
+        if row.lal:
+            files.append(row.lal.source.shortpathname)
+        dst = f"{folder}/{row.pid}"
+        if not os.path.exists(dst):
+            os.mkdir(dst)
+        tasks = [asyncio.to_thread(shutil.copy, i, dst) for i in files]
+        await asyncio.gather(*tasks)
+    
+    @asyncSlot()
+    async def export_rows(self):
         '''导出选中行数据'''
         select = self.table.selections()
         if not select:
             QMessageBox.critical(self, "错误", "未选择数据")
         else:
-            file_dict = {}
-            for row in select:
-                file_dict[row.pid] = []
-                if row.sds is not None:
-                    file_dict[row.pid].append(row.sds.source.shortpathname)
-                if row.sec is not None:
-                    file_dict[row.pid].append(row.sec.source.shortpathname)
-                    if row.sec.attach is not None:
-                        file_dict[row.pid].append(row.sec.attach.shortpathname)
-                if row.lal is not None:
-                    file_dict[row.pid].append(row.lal.source.shortpathname)
-            task_dialog = taskDialog(self)
-            self.task = AsyncTask(task_dialog)
-            self.task.exception.connect(
-                lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
-            self.task.setCoro(self.task.export(file_dict))
-            self.task.started.emit(len(select), "导出数据...")
-            self.task.start()
+            try:
+                task_dialog = asyncDialog(self)
+                folder = QFileDialog.getExistingDirectory()
+                task_dialog.started.emit(len(select), "导出数据...")
+                tasks = []
+                for row in select:
+                    task = asyncio.create_task(self.export_row(row, folder))
+                    task.add_done_callback(lambda t: task_dialog.step.emit())
+                    tasks.append(task)
+                # 设置超时300s
+                await asyncio.wait_for(asyncio.gather(*tasks), timeout=300.0)
+                task_dialog.finished.emit()
+            except Exception as e:
+                task_dialog.finished.emit()
+                QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})")
 
-    def coa_query(self):
+    async def coa_single_generate(self, coa_data:tuple, row: QcRow, folder: str):
+        # 生成CoA html文件
+        coa = CoAData.from_dbdata(coa_data)
+        coa.conclude_sds(row.sds)
+        coa.conclude_sec(row.sec)
+        # coa.conclude_elisa()
+        html = coa.toHtml()
+        dst = f"{folder}/{row.pid}"
+        if not os.path.exists(dst):
+            os.mkdir(dst)
+        with open(f"{dst}/{row.pid}.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        # 提取SDS图
+        await asyncio.gather(extract_sds(row.sds, dst), extract_sec(row.sec, dst))
+
+    @asyncSlot()
+    async def coa_generate(self):
         '''CoA信息查询'''
         select = self.table.selections()
         if not select:
@@ -229,26 +254,20 @@ class QcWidget(QWidget, Ui_Qc):
         else:
             pid_list = [i.pid for i in select]
             db_data_list = [find_by_pid(pid) for pid in pid_list]
-            coa_data_list = [coa_data(i) for i in db_data_list]
+            coa_data_list = [filter_coa_data(i) for i in db_data_list]
             sample_dialog = SampleDialog(self, coa_data_list)
             if sample_dialog.exec():
-                # 提取图片线程
-                task_dialog = taskDialog(self)
-                self.task = ViewTask(task_dialog)
-                self.task.exception.connect(
-                    lambda e: QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})"))
-                sds_list = [[i.sds, i.sds.source.shortpathname] for i in select]
-                self.task.setCoro(self.task.extract_many_sds(sds_list))
-                self.task.started.emit(len(select), "生成CoA...")
-                self.task.start()
-                coa_data_list = sample_dialog.get_data()
-                coa_list = [CoAData.from_dbdata(i) for i in coa_data_list]
-                for coa, row in zip(coa_list, select):
-                    coa.conclude_sds(row.sds)
-                    coa.conclude_sec(row.sec)
-                    # coa.conclude_elisa()
-                    html = coa.toHtml()
-                    if not os.path.exists(f"out/{row.pid}"):
-                        os.mkdir(f"out/{row.pid}")
-                    with open(f"out/{row.pid}/out.html", "w", encoding="utf-8") as f:
-                        f.write(html)
+                try:
+                    task_dialog = asyncDialog(self)
+                    task_dialog.started.emit(len(select), "生成CoA...")
+                    coa_data_list = sample_dialog.get_data()
+                    tasks = []
+                    for coa_data, row in zip(coa_data_list, select):
+                        task = asyncio.create_task(self.coa_single_generate(coa_data, row, "out"))
+                        task.add_done_callback(lambda t: task_dialog.step.emit())
+                        tasks.append(task)
+                    await asyncio.gather(*tasks)
+                    task_dialog.finished.emit()
+                except Exception as e:
+                    task_dialog.finished.emit()
+                    QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})")
