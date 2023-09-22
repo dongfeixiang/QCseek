@@ -5,6 +5,8 @@ import winreg
 from PyQt6 import QtCore
 from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout
 from qasync import QApplication, QEventLoop, asyncSlot
+from QCseek.view import search_source
+from configparser import ConfigParser
 
 # from QCseek.model import SDS, SEC, LAL
 # from QCseek.view import backup, scan_update, clean, extract_sds
@@ -52,10 +54,9 @@ class MyWin(QWidget):
 
 
 if __name__ == "__main__":
-    app = QApplication([])
-    loop = QEventLoop(app)
-    asyncio.set_event_loop(loop)
-    win = MyWin()
-    win.show()
-    with loop:
-        loop.run_forever()
+    config = ConfigParser()
+    config.read("config.ini", encoding="utf-8")
+    qcconfig = config["QCSEEK"]
+    qcconfig["CustomSource"] = "123"
+    with open('config.ini', 'w', encoding="utf-8") as configfile:
+        config.write(configfile)

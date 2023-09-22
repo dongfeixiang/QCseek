@@ -3,6 +3,7 @@ import shutil
 import asyncio
 from pathlib import Path
 from datetime import datetime
+from configparser import ConfigParser
 
 import cv2
 import fitz
@@ -12,16 +13,9 @@ import pandas as pd
 from .sds_reader import pre_cut, gel_crop
 from .model import *
 
-# F盘文件夹路径
-BASE_DIR = Path(
-    r"\\192.168.29.200\f\service\0.样品管理部\01 蛋白库相关\06 蛋白编号\00 理化质检-P90000之后在这里查理化质检结果"
-)
-SDS_FOLDER = BASE_DIR / "SDS-PAGE"
-SEC_FOLDER = BASE_DIR / "SEC"
-LAL_FOLDER = BASE_DIR / "LAL"
+
 WHITE = [
 ]
-
 
 def scan(dir):
     '''扫描文件夹, 返回PPTX, PDF列表'''
@@ -38,6 +32,27 @@ def scan(dir):
                     res.append((folder, i.name))
     return res
 
+def search_source():
+    # 读取配置
+    config = ConfigParser()
+    config.read("config.ini", encoding="utf-8")
+    qcconfig = config["QCSEEK"]
+    default_source = qcconfig["DefaultSource"]
+    custom_source = qcconfig["CustomSource"]
+    # 默认源
+    sds_files = scan(Path(default_source) / "SDS-PAGE")
+    sec_files = scan(Path(default_source) / "SEC")
+    lal_files = scan(Path(default_source) / "LAL")
+    # 自定义源
+    if custom_source:
+        for path, name in scan(custom_source):
+            if "SDS-PAGE" in name:
+                sds_files.append((path, name))
+            elif "SEC" in name:
+                sec_files.append((path, name))
+            elif "LAL" in name:
+                lal_files.append((path, name))
+    return sds_files, sec_files, lal_files
 
 async def create_qcfile(path: str, name: str) -> QCFile | None:
     '''
@@ -189,9 +204,9 @@ async def batch_attach_pdf(file_list, dialog):
 
 async def scan_update(dialog):
     '''扫描文件夹并更新数据库'''
-    sds_files = scan(SDS_FOLDER)
-    sec_files = scan(SEC_FOLDER)
-    lal_files = scan(LAL_FOLDER)
+    connect = asyncio.to_thread(search_source)
+    # 扫描F盘，超时10s
+    sds_files, sec_files, lal_files = await asyncio.wait_for(connect, timeout=10.0)
     dialog.started.emit(len(sds_files)+len(sec_files) +
                         len(lal_files), "更新数据库...")
     errors = await asyncio.gather(

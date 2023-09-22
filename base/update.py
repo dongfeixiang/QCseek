@@ -1,4 +1,5 @@
 from github import Github, Auth
+import requests
 
 
 ACCESS_TOKEN = "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"
@@ -6,8 +7,15 @@ ACCESS_TOKEN = "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"
 
 def check_version():
     '''检测release版本'''
-    token = Auth.Token(ACCESS_TOKEN)
-    g = Github(auth=token)
+    g = Github()
+    user = g.get_user("dongfeixiang")
+    # qcseek_repo = user.get_repo("QCseek")
+    # latest = qcseek_repo.get_latest_release()
+    # ast = latest.get_assets()[0]
+    # res = requests.get(ast.url)
+    # print(res)
+    # with open("seek.rar", "wb") as f:
+    #     f.write(res.content)
 
 
 async def download():

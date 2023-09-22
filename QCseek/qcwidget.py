@@ -117,10 +117,13 @@ class QcWidget(QWidget, Ui_Qc):
         self.setupUi(self)
         self.updateButton.setIcon(QApplication.style().standardIcon(
             QStyle.StandardPixmap.SP_BrowserReload))
+        self.updateButton.setToolTip("更新数据库")
         self.cleanButton.setIcon(QApplication.style().standardIcon(
             QStyle.StandardPixmap.SP_DialogResetButton))
+        self.cleanButton.setToolTip("清除数据库")
         self.folderButton.setIcon(QApplication.style().standardIcon(
             QStyle.StandardPixmap.SP_FileDialogNewFolder))
+        self.folderButton.setToolTip("数据源")
         self.horizontalLayout_4 = QVBoxLayout(self.frame_3)
         self.table = QcTable(self.frame_3)
         self.horizontalLayout_4.addWidget(self.table)
@@ -247,8 +250,13 @@ class QcWidget(QWidget, Ui_Qc):
             os.mkdir(dst)
         with open(f"{dst}/{row.pid}.html", "w", encoding="utf-8") as f:
             f.write(html)
-        # 提取SDS图
-        await asyncio.gather(extract_sds(row.sds, dst), extract_sec(row.sec, dst))
+        # 提取SDS/SEC图
+        tasks = []
+        if row.sds is not None:
+            tasks.append(extract_sds(row.sds, dst))
+        if row.sec is not None:
+            tasks.append(extract_sec(row.sec, dst))
+        await asyncio.gather(*tasks)
 
     @asyncSlot()
     async def coa_generate(self):
@@ -257,14 +265,14 @@ class QcWidget(QWidget, Ui_Qc):
         if not select:
             QMessageBox.critical(self, "错误", "未选择数据")
             return
-        pid_list = [i.pid for i in select]
-        db_data_list = [find_by_pid(pid) for pid in pid_list]
-        coa_data_list = [filter_coa_data(i) for i in db_data_list]
-        sample_dialog = SampleDialog(self, coa_data_list)
-        if not sample_dialog.exec():
-            return
         try:
             task_dialog = asyncDialog(self)
+            pid_list = [i.pid for i in select]
+            db_data_list = [find_by_pid(pid) for pid in pid_list]
+            coa_data_list = [filter_coa_data(i) for i in db_data_list]
+            sample_dialog = SampleDialog(self, coa_data_list)
+            if not sample_dialog.exec():
+                return
             task_dialog.started.emit(len(select), "生成CoA...")
             coa_data_list = sample_dialog.get_data()
             tasks = []

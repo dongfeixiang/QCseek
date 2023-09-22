@@ -1,3 +1,5 @@
+from configparser import ConfigParser
+
 from PyQt6.QtWidgets import (
     QDialog, QRadioButton, QButtonGroup, QSpacerItem,
     QSizePolicy, QTableWidgetItem, QHeaderView, QMessageBox,
@@ -148,10 +150,17 @@ class SourceDialog(QDialog, Ui_sourceDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
+        self.config = ConfigParser()
+        self.config.read("config.ini", encoding="utf-8")
+        qcconfig = self.config["QCSEEK"]
+        self.lineEdit.setText(qcconfig["DefaultSource"])
         self.lineEdit.setCursorPosition(0)
+        self.lineEdit_2.setText(qcconfig["CustomSource"])
+        self.lineEdit_2.setCursorPosition(0)
         # 信号-槽连接
         self.addButton.clicked.connect(self.add_source)
         self.browserButton.clicked.connect(self.select_source)
+        self.pushButton.clicked.connect(self.save_config)
 
     def add_source(self):
         QMessageBox.information(self, "提示", "暂未开发")
@@ -159,3 +168,9 @@ class SourceDialog(QDialog, Ui_sourceDialog):
     def select_source(self):
         folder = QFileDialog.getExistingDirectory()
         self.lineEdit_2.setText(folder)
+    
+    def save_config(self):
+        qcconfig = self.config["QCSEEK"]
+        qcconfig["CustomSource"] = self.lineEdit_2.text()
+        with open('config.ini', 'w', encoding="utf-8") as configfile:
+            self.config.write(configfile)

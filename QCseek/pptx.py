@@ -61,8 +61,10 @@ class Slide:
     def get_index(self):
         '''获取标题序号'''
         title = self._bs.find(".//p:ph[@type='title']/../../..", self.ns)
+        if title is None:
+            return None
         try:
-            return int(title.text)
+            return int("".join(title.itertext()).strip())
         except:
             return None
 
@@ -124,24 +126,16 @@ class PPTX:
         for i in slides:
             if i.get_index() and i.get_index() == index:
                 images = i.get_image_names()
-                img = await self.get_image_by_name(images[0])
+                img_name = images[0] if len(images) == 1 else images[1]
+                img = await self.get_image_by_name(img_name)
                 return img
 
 
-# async def open_ppt():
-#     async with PPTX("1.pptx") as ppt:
-#         for slide in await ppt.slides():
-#             ...
-
-
 async def main():
-    async with PPTX("2.pptx") as ppt:
-        for s in await ppt.slides():
-            pixs = s.get_image_names()
-            for i in pixs:
-                img = await ppt.get_image_by_name(i)
-                cv2.imshow("", img)
-                cv2.waitKey()
+    async with PPTX("sec.pptx") as ppt:
+        slides = await ppt.slides()
+        index = slides[3].get_index()
+        print(index)
 
 if __name__ == "__main__":
     asyncio.run(main())
