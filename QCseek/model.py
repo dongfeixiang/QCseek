@@ -5,9 +5,10 @@ from peewee import (
     CharField, DateTimeField, ForeignKeyField
 )
 
+from base.settings import BASE_DIR
 from .pptx import PPTX
 
-db = SqliteDatabase("sqlite.db", pragmas={
+db = SqliteDatabase(BASE_DIR / "sqlite.db", pragmas={
     'foreign_keys': 1,
     'ignore_check_constraints': 0,
     'synchronous': 0

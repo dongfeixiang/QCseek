@@ -4,24 +4,12 @@ from dataclasses import dataclass
 import pymysql
 from jinja2 import FileSystemLoader, Environment
 
-
-HOST = '139.224.83.66'
-USER = 'erp_readonly'
-PASSWORD = 'aLfQH4getbyht2br7CLX'
-DATABASE = 'sanyou_erp'
-PORT = 5367
+from base.settings import BASE_DIR, DATABASE
 
 
 def find_by_pid(pid: str) -> tuple:
     '''根据蛋白编号查找数据'''
-    with pymysql.connect(
-        host=HOST,
-        user=USER,
-        password=PASSWORD,
-        database=DATABASE,
-        port=PORT,
-        charset="utf8"
-    ) as conn:
+    with pymysql.connect(**DATABASE, charset="utf8") as conn:
         with conn.cursor() as cur:
             sql = f"SELECT * FROM stock_sample WHERE merge_no='{pid}'"
             cur.execute(sql)
@@ -71,7 +59,7 @@ class CoAData:
     def from_dbdata(cls, data: tuple):
         '''将数据元组转换为CoA文档字符'''
         conc = data[8]
-        cell_type = "CHO"# data[11]
+        cell_type = "CHO"  # data[11]
         h_subtype = data[3]
         l_subtype = data[4]
         mw = data[5]
@@ -104,9 +92,9 @@ class CoAData:
 
     def toHtml(self):
         env = Environment(
-            loader=FileSystemLoader("F:\code\QCseek")
+            loader=FileSystemLoader(BASE_DIR)
         )
-        temp = env.get_template("template/template.html")
+        temp = env.get_template(BASE_DIR / "template/template.html")
         return temp.render(data=self)
 
 # pn = "P55604"

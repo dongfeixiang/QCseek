@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 from cv2_rolling_ball import subtract_background_rolling_ball
 # import matplotlib.pyplot as plt
-from scipy.signal import find_peaks, peak_prominences, peak_widths
+from scipy.signal import find_peaks
 
 
 def pre_cut(img, cut_bg: bool = False):

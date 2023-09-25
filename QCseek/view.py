@@ -3,19 +3,16 @@ import shutil
 import asyncio
 from pathlib import Path
 from datetime import datetime
-from configparser import ConfigParser
 
 import cv2
 import fitz
 import numpy as np
 import pandas as pd
 
+from base.settings import BASE_DIR, CONFIG, WHITE
 from .sds_reader import pre_cut, gel_crop
 from .model import *
 
-
-WHITE = [
-]
 
 def scan(dir):
     '''扫描文件夹, 返回PPTX, PDF列表'''
@@ -32,11 +29,10 @@ def scan(dir):
                     res.append((folder, i.name))
     return res
 
+
 def search_source():
     # 读取配置
-    config = ConfigParser()
-    config.read("config.ini", encoding="utf-8")
-    qcconfig = config["QCSEEK"]
+    qcconfig = CONFIG["QCSEEK"]
     default_source = qcconfig["DefaultSource"]
     custom_source = qcconfig["CustomSource"]
     # 默认源
@@ -53,6 +49,7 @@ def search_source():
             elif "LAL" in name:
                 lal_files.append((path, name))
     return sds_files, sec_files, lal_files
+
 
 async def create_qcfile(path: str, name: str) -> QCFile | None:
     '''
@@ -141,7 +138,7 @@ async def attach_pdf(path: str, name: str):
 
 def backup():
     '''备份数据库'''
-    shutil.copy("sqlite.db", "sqlite_bak.db")
+    shutil.copy(BASE_DIR / "sqlite.db",  BASE_DIR / "sqlite_bak.db")
 
 
 async def batch_create_ssl(file_list, model, dialog):
@@ -220,7 +217,7 @@ async def scan_update(dialog):
     pd.DataFrame(
         errors,
         columns=["path", "name", "error"]
-    ).to_excel("out/errors.xlsx", index=False)
+    ).to_excel(BASE_DIR / "out/errors.xlsx", index=False)
 
 
 async def clean(model):
@@ -271,12 +268,13 @@ async def extract_sds(sds: SDS, folder: str):
         img = await ppt.get_image_by_name(sds.pic)
         img, img_gray = await asyncio.to_thread(pre_cut, img, cut_bg=True)
         lines = await asyncio.to_thread(gel_crop, img_gray)
-        non_reduced = img[:, lines[sds.non_reduced_lane-1]:lines[sds.non_reduced_lane]]
+        non_reduced = img[:, lines[sds.non_reduced_lane-1]
+            :lines[sds.non_reduced_lane]]
         marker = img[:, lines[7]:lines[8]]
         reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
         sds_img = np.hstack([non_reduced, marker, reduced])
         sds_img = cv2.resize(sds_img, (200, 720))
-        temp = cv2.imread("resource/marker.png")
+        temp = cv2.imread(BASE_DIR / "resource/marker.png")
         temp[40:, 60:] = sds_img
         cv2.imwrite(f"{folder}/sds.png", temp)
         return temp

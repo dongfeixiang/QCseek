@@ -1,15 +1,14 @@
-from configparser import ConfigParser
-
 from PyQt6.QtWidgets import (
     QDialog, QRadioButton, QButtonGroup, QSpacerItem,
     QSizePolicy, QTableWidgetItem, QHeaderView, QMessageBox,
     QFileDialog
 )
 
+from base.settings import CONFIG
 from .qcresultDialog_ui import Ui_QcresultDialog
 from .sampleDialog_ui import Ui_SampleDialog
 from .sourceDialog_ui import Ui_sourceDialog
-from .model import SDS, SEC, LAL
+from .model import *
 
 
 class SdsRadioButton(QRadioButton):
@@ -150,9 +149,7 @@ class SourceDialog(QDialog, Ui_sourceDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
-        self.config = ConfigParser()
-        self.config.read("config.ini", encoding="utf-8")
-        qcconfig = self.config["QCSEEK"]
+        qcconfig = CONFIG["QCSEEK"]
         self.lineEdit.setText(qcconfig["DefaultSource"])
         self.lineEdit.setCursorPosition(0)
         self.lineEdit_2.setText(qcconfig["CustomSource"])
@@ -168,9 +165,8 @@ class SourceDialog(QDialog, Ui_sourceDialog):
     def select_source(self):
         folder = QFileDialog.getExistingDirectory()
         self.lineEdit_2.setText(folder)
-    
+
     def save_config(self):
-        qcconfig = self.config["QCSEEK"]
+        qcconfig = CONFIG["QCSEEK"]
         qcconfig["CustomSource"] = self.lineEdit_2.text()
-        with open('config.ini', 'w', encoding="utf-8") as configfile:
-            self.config.write(configfile)
+        CONFIG.save()

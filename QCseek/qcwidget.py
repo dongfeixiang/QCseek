@@ -2,7 +2,7 @@ import os
 import shutil
 import asyncio
 
-from PyQt6.QtGui import QKeyEvent, QIcon
+from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtCore import Qt, pyqtSignal, QRect
 from PyQt6.QtWidgets import (
     QTableWidget, QHeaderView, QTableWidgetItem,
@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from qasync import asyncSlot
 
 from base.dialog import asyncDialog
+from base.settings import BASE_DIR
 from .dialog import QcresultDialog, SampleDialog, SourceDialog
 from .qc_ui import Ui_Qc
 from .model import SDS, SEC, LAL
@@ -278,7 +279,7 @@ class QcWidget(QWidget, Ui_Qc):
             tasks = []
             for coa_data, row in zip(coa_data_list, select):
                 task = asyncio.create_task(
-                    self.coa_single_generate(coa_data, row, "out"))
+                    self.coa_single_generate(coa_data, row,  BASE_DIR / "out"))
                 task.add_done_callback(
                     lambda t: task_dialog.step.emit())
                 tasks.append(task)

@@ -1,5 +1,5 @@
 # 单PyQt打包
-# nuitka --mingw64 --standalone --show-progress --show-memory --enable-plugin=pyqt6 --windows-disable-console --output-dir=nuitka_out app.py
+# nuitka --mingw64 --standalone --show-progress --show-memory --enable-plugin=pyqt6 --nofollow-import-to=numpy,pandas,scipy,cv2,fitz --output-dir=nuitka_out app.py
 import asyncio
 
 from qasync import QApplication, QEventLoop
@@ -12,7 +12,6 @@ class Autoseek(QApplication):
         super().__init__([])
         self.loop = QEventLoop(self)
         asyncio.set_event_loop(self.loop)
-        # self.win = BaseWindow()
         self.win = QcWidget()
 
     def run(self):
