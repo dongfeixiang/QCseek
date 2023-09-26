@@ -240,23 +240,23 @@ class QcWidget(QWidget, Ui_Qc):
             QMessageBox.critical(self, "错误", f"{type(e).__name__}({e})")
 
     async def coa_single_generate(self, coa_data: tuple, row: QcRow, folder: str):
-        # 生成CoA html文件
         coa = CoAData.from_dbdata(coa_data)
-        coa.conclude_sds(row.sds)
-        coa.conclude_sec(row.sec)
-        # coa.conclude_elisa()
-        html = coa.toHtml()
         dst = f"{folder}/{row.pid}"
         if not os.path.exists(dst):
             os.mkdir(dst)
-        with open(f"{dst}/{row.pid}.html", "w", encoding="utf-8") as f:
-            f.write(html)
         # 提取SDS/SEC图
         tasks = []
         if row.sds is not None:
+            coa.conclude_sds(row.sds)
             tasks.append(extract_sds(row.sds, dst))
         if row.sec is not None:
+            coa.conclude_sec(row.sec)
             tasks.append(extract_sec(row.sec, dst))
+        # 生成CoA html文件
+        # coa.conclude_elisa()
+        html = coa.toHtml()
+        with open(f"{dst}/{row.pid}.html", "w", encoding="utf-8") as f:
+            f.write(html)
         await asyncio.gather(*tasks)
 
     @asyncSlot()
@@ -266,26 +266,26 @@ class QcWidget(QWidget, Ui_Qc):
         if not select:
             QMessageBox.critical(self, "错误", "未选择数据")
             return
-        try:
-            task_dialog = asyncDialog(self)
-            pid_list = [i.pid for i in select]
-            db_data_list = [find_by_pid(pid) for pid in pid_list]
-            coa_data_list = [filter_coa_data(i) for i in db_data_list]
-            sample_dialog = SampleDialog(self, coa_data_list)
-            if not sample_dialog.exec():
-                return
-            task_dialog.started.emit(len(select), "生成CoA...")
-            coa_data_list = sample_dialog.get_data()
-            tasks = []
-            for coa_data, row in zip(coa_data_list, select):
-                task = asyncio.create_task(
-                    self.coa_single_generate(coa_data, row,  BASE_DIR / "out"))
-                task.add_done_callback(
-                    lambda t: task_dialog.step.emit())
-                tasks.append(task)
-            await asyncio.gather(*tasks)
-            task_dialog.finished.emit()
-        except Exception as e:
-            task_dialog.finished.emit()
-            QMessageBox.critical(
-                self, "错误", f"{type(e).__name__}({e})")
+        # try:
+        task_dialog = asyncDialog(self)
+        pid_list = [i.pid for i in select]
+        db_data_list = [find_by_pid(pid) for pid in pid_list]
+        coa_data_list = [filter_coa_data(i) for i in db_data_list]
+        sample_dialog = SampleDialog(self, coa_data_list)
+        if not sample_dialog.exec():
+            return
+        task_dialog.started.emit(len(select), "生成CoA...")
+        coa_data_list = sample_dialog.get_data()
+        tasks = []
+        for coa_data, row in zip(coa_data_list, select):
+            task = asyncio.create_task(
+                self.coa_single_generate(coa_data, row,  BASE_DIR / "out"))
+            task.add_done_callback(
+                lambda t: task_dialog.step.emit())
+            tasks.append(task)
+        await asyncio.gather(*tasks)
+        task_dialog.finished.emit()
+        # except Exception as e:
+        #     task_dialog.finished.emit()
+        #     QMessageBox.critical(
+        #         self, "错误", f"{type(e).__name__}({e})")

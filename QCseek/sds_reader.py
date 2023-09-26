@@ -5,6 +5,7 @@ from cv2_rolling_ball import subtract_background_rolling_ball
 from scipy.signal import find_peaks
 
 
+# test
 def pre_cut(img, cut_bg: bool = False):
     '''图片预处理，裁剪，灰度化，背景减除'''
     img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -29,6 +30,7 @@ def pre_cut(img, cut_bg: bool = False):
     return img[top+10:, :], img_gray
 
 
+# test
 def gel_crop(img: np.ndarray) -> list:
     '''
     根据泳道裁剪图片
@@ -49,10 +51,8 @@ def gel_crop(img: np.ndarray) -> list:
     # plt.show()
 
     # 边界列表
-    lines = [0] + edges + [len(img[0])]
+    lines = [0, *edges, width]
     return lines
-
-    return [img[:, lines[i]:lines[i+1]] for i in range(len(lines)-1)]
 
 
 def gray_check(img: np.ndarray, edges: list):
@@ -65,7 +65,8 @@ def gray_check(img: np.ndarray, edges: list):
     # 查找峰顶，即分割界限
     peaks, _ = find_peaks(col_mean, height=245,
                           distance=len(img[0])/30, prominence=2)
-
+    if len(peaks) == 0:
+        return edges
     # plt.plot(np.arange(len(col_mean)), col_mean)
     # plt.plot(peaks, col_mean[peaks], "x")
     # plt.show()
@@ -102,6 +103,8 @@ def blank_check(img: np.ndarray, edges: list):
         else:
             if (zeros[i+1]-zeros[i]) > len(img)/30 and (zeros[i]-zeros[i-1]) > len(img)/30:
                 blanks.append(zeros[i])
+    if not blanks:
+        return edges
     # 查找最近边界并校正
     for i, e in enumerate(edges):
         dis = [abs(e-b) for b in blanks]

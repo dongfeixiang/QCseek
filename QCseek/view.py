@@ -274,7 +274,7 @@ async def extract_sds(sds: SDS, folder: str):
         reduced = img[:, lines[sds.reduced_lane-1]:lines[sds.reduced_lane]]
         sds_img = np.hstack([non_reduced, marker, reduced])
         sds_img = cv2.resize(sds_img, (200, 720))
-        temp = cv2.imread(BASE_DIR / "resource/marker.png")
+        temp = cv2.imread(f"{BASE_DIR}/resource/marker.png")
         temp[40:, 60:] = sds_img
         cv2.imwrite(f"{folder}/sds.png", temp)
         return temp

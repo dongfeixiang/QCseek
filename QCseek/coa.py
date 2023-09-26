@@ -72,7 +72,10 @@ class CoAData:
             pid=f"Lot. No.: {data[1]}",
             name=data[2],
             conc=f"{conc} mg/mL, verified by UV280",
-            characterization=f"It is expressed from {cell_type}. The heavy chain type is {h_subtype}, and the light chain type is {l_subtype}. It has a predicted MW of {mw} kDa.",
+            characterization=f"It is expressed from {cell_type}. \
+                The heavy chain type is {h_subtype}, \
+                and the light chain type is {l_subtype}. \
+                It has a predicted MW of {mw} kDa.",
             formulation=f"Supplied as a 0.22 &mu;m filtered solution in {buffer}",
             cat_no=f"Cat. No.: {cat}",
             lot_no=lot,
@@ -80,21 +83,26 @@ class CoAData:
 
     def conclude_sds(self, sds):
         '''添加SDS数据'''
-        self.sds_conclusion = sds
+        self.sds_conclusion = f"{self.name} ({self.lot_no}), \
+            on SDS-PAGE under non-reducing (NR) and reducing (R) conditions. \
+            The gel was stained with Coomassie Blue. \
+            The purity of the protein is {sds.purity}%."
 
     def conclude_sec(self, sec):
         '''添加SEC数据'''
-        self.sec_conclusion = sec
+        self.sec_conclusion = f"The purity of protein, determined by HPLC, is {sec.monomer}%."
 
     def conclude_elisa(self, elisa):
         '''添加ELISA数据'''
-        self.elisa_conclusion = elisa
+        self.elisa_conclusion = f"Immobilized TARGET at 2 μg/mL (30 μL/well) \
+            can bind {self.name} ({self.lot_no}) \
+            with the EC50 of 2.526 ng/mL."
 
     def toHtml(self):
         env = Environment(
             loader=FileSystemLoader(BASE_DIR)
         )
-        temp = env.get_template(BASE_DIR / "template/template.html")
+        temp = env.get_template("template/template.html")
         return temp.render(data=self)
 
 # pn = "P55604"

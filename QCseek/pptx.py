@@ -95,6 +95,7 @@ class PPTX:
     async def get_slide(self, file: str) -> Slide:
         if not file.startswith("ppt/slides/slide"):
             raise ValueError(f"{file} is not a slide")
+        self._zipfile.extract(file)
         rel = f"ppt/slides/_rels/{file.split('/')[-1]}.rels"
         fp, frel = await asyncio.gather(self.open(file), self.open(rel))
         with fp, frel:
