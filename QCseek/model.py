@@ -5,7 +5,7 @@ from peewee import (
     CharField, DateTimeField, ForeignKeyField
 )
 
-from base.settings import BASE_DIR
+from Autoseek.settings import BASE_DIR
 from .pptx import PPTX
 
 db = SqliteDatabase(BASE_DIR / "sqlite.db", pragmas={

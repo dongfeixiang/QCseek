@@ -4,7 +4,7 @@ import asyncio
 
 from qasync import QApplication, QEventLoop
 
-from QCseek.qcwidget import QcWidget
+from Autoseek.window import BaseWindow
 
 
 class Autoseek(QApplication):
@@ -12,7 +12,7 @@ class Autoseek(QApplication):
         super().__init__([])
         self.loop = QEventLoop(self)
         asyncio.set_event_loop(self.loop)
-        self.win = QcWidget()
+        self.win = BaseWindow()
 
     def run(self):
         self.win.show()

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import pymysql
 from jinja2 import FileSystemLoader, Environment
 
-from base.settings import BASE_DIR, DATABASE
+from Autoseek.settings import BASE_DIR, DATABASE
 
 
 def find_by_pid(pid: str) -> tuple:

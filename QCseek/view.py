@@ -9,7 +9,7 @@ import fitz
 import numpy as np
 import pandas as pd
 
-from base.settings import BASE_DIR, CONFIG, WHITE
+from Autoseek.settings import BASE_DIR, CONFIG, WHITE
 from .sds_reader import pre_cut, gel_crop
 from .model import *
 

@@ -12,8 +12,8 @@ from PyQt6.QtWidgets import (
 )
 from qasync import asyncSlot
 
-from base.dialog import asyncDialog
-from base.settings import BASE_DIR
+from Autoseek.dialog import asyncDialog
+from Autoseek.settings import BASE_DIR
 from .dialog import QcresultDialog, SampleDialog, SourceDialog
 from .qc_ui import Ui_Qc
 from .model import SDS, SEC, LAL

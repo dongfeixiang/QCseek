@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QFileDialog
 )
 
-from base.settings import CONFIG
+from Autoseek.settings import CONFIG
 from .qcresultDialog_ui import Ui_QcresultDialog
 from .sampleDialog_ui import Ui_SampleDialog
 from .sourceDialog_ui import Ui_sourceDialog
