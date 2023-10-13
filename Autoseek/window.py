@@ -1,10 +1,10 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QWidget
-from PyQt6.QtGui import QIcon, QPixmap, QMouseEvent
+from PyQt6.QtGui import QMouseEvent
 
-from .settings import BASE_DIR
 from .ui_window import Ui_Form
-from QCseek.qcwidget import QcWidget
+from qcseek.widget import QcWidget
+from schedule.widget import SheduleWidget
 
 
 class FramelessWindow(QWidget):
@@ -29,36 +29,18 @@ class FramelessWindow(QWidget):
         self.ismoving = False
 
 
-class BaseWindow(FramelessWindow, Ui_Form):
+class BaseWindow(QWidget, Ui_Form):
     def __init__(self) -> None:
         super().__init__()
         self.setupUi(self)
-        self.label_4.setPixmap(QPixmap(f"{BASE_DIR}/resource/logo.png"))
-        self.minimizeButton.setIcon(
-            QIcon(f"{BASE_DIR}/resource/Minimize-2.png")
-        )
-        self.maximizeButton.setIcon(
-            QIcon(f"{BASE_DIR}/resource/Maximize-1.png")
-        )
-        self.closeButton.setIcon(
-            QIcon(f"{BASE_DIR}/resource/close.png")
-        )
-        self.maximizeButton.clicked.connect(self.onClickMaximizeButton)
 
+        shedule_page = SheduleWidget()
         qc_page = QcWidget()
+        self.stackedWidget.addWidget(shedule_page)
         self.stackedWidget.addWidget(qc_page)
-        self.pushButton_3.clicked.connect(lambda: self.stackedWidget.setCurrentIndex(0))
-        self.pushButton_4.clicked.connect(lambda: self.stackedWidget.setCurrentIndex(1))
-        self.pushButton_5.clicked.connect(lambda: self.stackedWidget.setCurrentIndex(3))
-
-    def onClickMaximizeButton(self):
-        if self.isMaximized():
-            self.showNormal()
-            self.maximizeButton.setIcon(
-                QIcon(f"{BASE_DIR}/resource/Maximize-1.png")
-            )
-        else:
-            self.showMaximized()
-            self.maximizeButton.setIcon(
-                QIcon(f"{BASE_DIR}/resource/Maximize-3.png")
-            )
+        self.menuButton_1.clicked.connect(
+            lambda: self.stackedWidget.setCurrentIndex(0))
+        self.menuButton_2.clicked.connect(
+            lambda: self.stackedWidget.setCurrentIndex(1))
+        self.menuButton_3.clicked.connect(
+            lambda: self.stackedWidget.setCurrentIndex(1))

@@ -116,15 +116,6 @@ class QcWidget(QWidget, Ui_Qc):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.setupUi(self)
-        self.updateButton.setIcon(QApplication.style().standardIcon(
-            QStyle.StandardPixmap.SP_BrowserReload))
-        self.updateButton.setToolTip("更新数据库")
-        self.cleanButton.setIcon(QApplication.style().standardIcon(
-            QStyle.StandardPixmap.SP_DialogResetButton))
-        self.cleanButton.setToolTip("清除数据库")
-        self.folderButton.setIcon(QApplication.style().standardIcon(
-            QStyle.StandardPixmap.SP_FileDialogNewFolder))
-        self.folderButton.setToolTip("数据源")
         self.horizontalLayout_4 = QVBoxLayout(self.frame_3)
         self.table = QcTable(self.frame_3)
         self.horizontalLayout_4.addWidget(self.table)

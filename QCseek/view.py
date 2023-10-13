@@ -9,7 +9,7 @@ import fitz
 import numpy as np
 import pandas as pd
 
-from Autoseek.settings import BASE_DIR, CONFIG, WHITE
+from Autoseek.settings import BASE_DIR, CONFIG, WHITE, LOCALDB
 from .sds_reader import pre_cut, gel_crop
 from .model import *
 
@@ -163,7 +163,7 @@ async def batch_create_ssl(file_list, model, dialog):
         else:
             updating += r
     # 更新数据库
-    with db.atomic():
+    with LOCALDB.atomic():
         model.bulk_create(updating, batch_size=100)
         for i in failed:
             i.delete_instance()
@@ -192,7 +192,7 @@ async def batch_attach_pdf(file_list, dialog):
         else:
             updating += r
     # 更新数据库
-    with db.atomic():
+    with LOCALDB.atomic():
         SEC.bulk_update(updating, fields=["attach"], batch_size=100)
         for i in failed:
             i.delete_instance()
@@ -257,7 +257,7 @@ async def clean(model):
             i_set.remove(min(i_set))
             deleting.update(i_set)
     backup()
-    with db.atomic():
+    with LOCALDB.atomic():
         for d in deleting:
             model.get(model.id == d).delete_instance()
 

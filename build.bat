@@ -1,0 +1,1 @@
+python -m nuitka --mingw64 --standalone --show-progress --show-memory --enable-plugin=pyqt6 --nofollow-import-to=numpy,pandas,scipy,cv2,fitz,jinja2,peewee --include-module=uuid,six,pydoc --include-package=sqlite3 --noinclude-unittest-mode=allow --windows-disable-console --output-dir=nuitka_out app.py

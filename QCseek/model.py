@@ -1,23 +1,17 @@
 from pandas import DataFrame
 from win32api import GetShortPathName
 from peewee import (
-    SqliteDatabase, Model, IntegerField,
-    CharField, DateTimeField, ForeignKeyField
+    Model, IntegerField, CharField,
+    DateTimeField, ForeignKeyField
 )
 
-from Autoseek.settings import BASE_DIR
+from Autoseek.settings import LOCALDB
 from .pptx import PPTX
-
-db = SqliteDatabase(BASE_DIR / "sqlite.db", pragmas={
-    'foreign_keys': 1,
-    'ignore_check_constraints': 0,
-    'synchronous': 0
-})
 
 
 class BaseModel(Model):
     class Meta:
-        database = db
+        database = LOCALDB
 
 
 class QCFile(BaseModel):
@@ -272,4 +266,4 @@ class LAL(BaseModel):
         return res
 
 
-db.create_tables([SDS, SEC, LAL, QCFile])
+LOCALDB.create_tables([SDS, SEC, LAL, QCFile])

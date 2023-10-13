@@ -1,8 +1,9 @@
 import cv2
-from QCseek.sds_reader import pre_cut, gel_crop
-from QCseek.model import SDS
-from QCseek.pptx import PPTX
+from qcseek.sds_reader import pre_cut, gel_crop
+from qcseek.model import SDS
+from qcseek.pptx import PPTX
 import asyncio
+from schedule.dialog import get_sys_chrome
 
 
 async def main():
@@ -11,4 +12,4 @@ async def main():
         await ppt.slides()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    print(get_sys_chrome())

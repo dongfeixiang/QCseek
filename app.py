@@ -16,8 +16,7 @@ class Autoseek(QApplication):
 
     def run(self):
         self.win.show()
-        with self.loop:
-            self.loop.run_forever()
+        self.loop.run_forever()
 
 
 if __name__ == "__main__":
